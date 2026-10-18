@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>小猫桌面宠物</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    :root { --ui-scale: 1; }
+    #stage { display: block; width: 100vw; height: 100vh; }
+
+    /* 右键功能菜单 */
+    #menu {
+      position: absolute;
+      display: none;
+      min-width: 132px;
+      padding: 6px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(6px);
+      z-index: 20;
+    }
+    #menu .item {
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: calc(13px * var(--ui-scale));
+      color: #333;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #menu .item:hover { background: rgba(120, 160, 220, 0.22); }
+    #menu .item.disabled { opacity: 0.4; cursor: default; }
+    #menu .item.disabled:hover { background: transparent; }
+    #menu .sep { height: 1px; margin: 5px 8px; background: rgba(0, 0, 0, 0.08); }
+    #menu .danger { color: #c0392b; }
+
+    /* 状态气泡：位置与缩放由 renderer.js 每帧按「猫头顶」计算写入。
+       transform-origin 固定在底部中心，保证缩放时尖角始终贴住猫头顶。 */
+    #bubble {
+      position: absolute;
+      left: 50%;
+      top: 26px;
+      transform-origin: 50% 100%;
+      transform: translateX(-50%) scale(1);
+      max-width: 250px;
+      padding: 7px 13px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+      font-size: calc(12.5px * var(--ui-scale));
+      line-height: 1.5;
+      color: #444;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 10;
+      will-change: transform, left, top;
+    }
+    #bubble.show { opacity: 1; }
+    /* 诗句：模型/语料用 | 分行，renderer 转成换行后靠这个类保留断行 */
+    #bubble.verse {
+      white-space: pre-line;
+      font-size: calc(13px * var(--ui-scale));
+      line-height: 1.8;
+      letter-spacing: 0.04em;
+    }
+    #bubble::after {
+      content: "";
+      position: absolute;
+      left: var(--tail-x, 50%);
+      bottom: -6px;
+      width: 12px;
+      height: 12px;
+      transform: translateX(-50%) rotate(45deg);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    /* 深色主题（外观设置 theme = dark / auto） */
+    body.dark #menu { background: rgba(42, 44, 50, 0.95); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); }
+    body.dark #menu .item { color: #e8e8ec; }
+    body.dark #menu .item:hover { background: rgba(120, 160, 220, 0.28); }
+    body.dark #menu .sep { background: rgba(255, 255, 255, 0.12); }
+    body.dark #menu .danger { color: #ff8072; }
+    body.dark #bubble { background: rgba(48, 50, 57, 0.95); color: #e8e8ec; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+    body.dark #bubble::after { background: rgba(48, 50, 57, 0.95); }
+  </style>
+</head>
+<body>
+  <canvas id="stage" width="640" height="640"></canvas>
+
+  <div id="bubble"></div>
+
+  <div id="menu">
+    <div class="item" data-act="pet">抚摸</div>
+    <div class="item" data-act="feed">喂食</div>
+    <div class="item" data-act="play">逗玩</div>
+    <div class="item" data-act="call">呼喊</div>
+    <div class="item" data-act="bath">洗澡</div>
+    <div class="sep"></div>
+    <div class="item" data-act="status">状态面板</div>
+    <div class="item" data-act="settings">设置</div>
+    <div class="sep"></div>
+    <div class="item danger" data-act="quit">退出</div>
+  </div>
+
+  <script src="engine/core.js"></script>
+  <script src="engine/fx.js"></script>
+  <script src="engine/particles.js"></script>
+  <script src="engine/animator.js"></script>
+  <script src="engine/fsm.js"></script>
+  <script src="engine/config-schema.js"></script>
+  <script src="engine/i18n.js"></script>
+  <script src="engine/needs-profile.js"></script>
+  <script src="engine/voice.js"></script>
+  <script src="engine/ai-talk.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

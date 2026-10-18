@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>设置</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none;
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #1d1d1f; background: #fff; }
+    body[data-theme="dark"] { color: #f2f2f7; background: #252527; }
+
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    .main { flex: 1; display: flex; min-height: 0; }
+
+    .nav { width: 136px; flex: 0 0 136px; background: #fafbfc; border-right: 1px solid #e5e7eb;
+      padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+    body[data-theme="dark"] .nav { background: #202022; border-color: #3a3a3c; }
+    .nav button { text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px;
+      font-size: 13px; color: #5a6070; cursor: pointer; font-family: inherit;
+      transition: background-color .12s ease, color .12s ease, transform .06s ease; }
+    body[data-theme="dark"] .nav button { color: #b9b9be; }
+    .nav button:hover { background: #f0f2f6; }
+    .nav button:active { background: #e4e8ee; transform: translateY(1px); }
+    .nav button:focus-visible { outline: 2px solid #4a7fd4; outline-offset: -2px; }
+    body[data-theme="dark"] .nav button:hover { background: #2c2c2f; }
+    body[data-theme="dark"] .nav button:active { background: #38383c; }
+    .nav button.on { background: #e8f0fd; color: #2f6bd0; font-weight: 500; }
+    body[data-theme="dark"] .nav button.on { background: #2f4a6e; color: #bcd6ff; }
+
+    .pane { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 18px 22px; }
+    .ghead h3 { margin: 0 0 5px; font-size: 15px; font-weight: 500; }
+    .ghead p { margin: 0 0 13px; font-size: 12.5px; color: #7c828d; line-height: 1.6; }
+    body[data-theme="dark"] .ghead p { color: #9a9a9f; }
+
+    .row { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; align-items: start;
+      padding: 9px 0; border-bottom: 1px solid #eef0f3; font-size: 13px; }
+    .row:last-child { border-bottom: 0; }
+    body[data-theme="dark"] .row { border-color: #333336; }
+    .row > .lbl { color: #4a4f57; padding-top: 4px; }
+    body[data-theme="dark"] .row > .lbl { color: #c9c9ce; }
+    .ctl { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .note { font-size: 12px; color: #8a8f98; line-height: 1.5; }
+    .hint { font-size: 12px; color: #8a8f98; line-height: 1.6; }
+    .err { font-size: 12px; color: #c0392b; }
+    body[data-theme="dark"] .err { color: #ff8072; }
+
+    input[type=text], select { border: 1px solid #d5d9e0; border-radius: 7px; padding: 5px 9px; font-size: 13px;
+      font-family: inherit; background: #fff; color: #1d1d1f; outline: none; min-width: 0; }
+    input[type=text]:focus, select:focus { border-color: #4a7fd4; box-shadow: 0 0 0 3px rgba(74, 127, 212, .14); }
+    input[type=text].bad { border-color: #d64545; box-shadow: 0 0 0 3px rgba(214, 69, 69, .13); }
+    input[type=text][readonly] { background: #f5f6f8; color: #6e737d; }
+    body[data-theme="dark"] input[type=text], body[data-theme="dark"] select { background: #2e2e30; border-color: #46464a; color: #f2f2f7; }
+    body[data-theme="dark"] input[type=text][readonly] { background: #29292b; color: #9a9a9f; }
+    input[type=checkbox] { width: 15px; height: 15px; accent-color: #4a7fd4; margin: 0; flex: 0 0 auto; }
+    input[type=range] { accent-color: #4a7fd4; flex: 1; min-width: 70px; height: 18px; }
+    .val { font-size: 12.5px; color: #5a6070; min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; }
+    body[data-theme="dark"] .val { color: #b9b9be; }
+
+    /* ---- 按钮交互反馈：常态 -> 悬停 -> 按下 -> 键盘聚焦，四态逐级变化 ----
+       - 悬停：底色加深 + 描边收紧 + 轻微投影（浮起感）
+       - 按下：底色再加深 + 内阴影 + 下移 1px（"按进去"的手感）
+       - 跳过 disabled：禁用态不参与悬停/按下，只保留降透明度
+       - 过渡 120ms（按下 60ms，更快才跟手） */
+    button.btn { border: 1px solid #d5d9e0; background: #fff; border-radius: 7px; padding: 5px 12px; font-size: 12.5px;
+      color: #3a4048; cursor: pointer; font-family: inherit; white-space: nowrap;
+      transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, color .12s ease,
+        transform .06s ease; }
+    button.btn:not(:disabled):hover { background: #f4f6f9; border-color: #c3c9d3;
+      box-shadow: 0 1px 3px rgba(20, 30, 50, .10); }
+    button.btn:not(:disabled):active { background: #e6eaf1; border-color: #b3bac6;
+      box-shadow: inset 0 1px 3px rgba(20, 30, 50, .18); transform: translateY(1px); }
+    button.btn:focus-visible { outline: 2px solid #4a7fd4; outline-offset: 2px; }
+    button.btn.primary { background: #4a7fd4; border-color: #4a7fd4; color: #fff; }
+    button.btn.primary:not(:disabled):hover { background: #3f72c3; border-color: #3a6ab6;
+      box-shadow: 0 1px 4px rgba(74, 127, 212, .38); }
+    button.btn.primary:not(:disabled):active { background: #35619f; border-color: #325c96;
+      box-shadow: inset 0 1px 4px rgba(10, 25, 50, .32); transform: translateY(1px); }
+    button.btn:disabled { opacity: .5; cursor: not-allowed; }
+    /* 动作按钮的结果回显（连接测试 / 现在讲一段） */
+    .actres { font-size: 12px; color: #8a8f98; min-height: 16px; }
+    .actres.ok { color: #2f8f5b; }
+    .actres.bad { color: #c0392b; }
+    body[data-theme="dark"] .actres { color: #9a9aa2; }
+    body[data-theme="dark"] .actres.ok { color: #5ec98e; }
+    body[data-theme="dark"] .actres.bad { color: #ff8b7d; }
+    body[data-theme="dark"] button.btn { background: #2e2e30; border-color: #46464a; color: #e4e4e9; }
+    body[data-theme="dark"] button.btn:not(:disabled):hover { background: #3a3a3e; border-color: #56565d;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+    body[data-theme="dark"] button.btn:not(:disabled):active { background: #444448; border-color: #616168;
+      box-shadow: inset 0 1px 4px rgba(0, 0, 0, .6); }
+    body[data-theme="dark"] button.btn.primary { background: #4a7fd4; border-color: #4a7fd4; color: #fff; }
+    body[data-theme="dark"] button.btn.primary:not(:disabled):hover { background: #5890e0; border-color: #4d84d6; }
+    body[data-theme="dark"] button.btn.primary:not(:disabled):active { background: #3b6cbb; border-color: #37659f; }
+    button.link { border: 0; background: transparent; font-size: 12.5px; cursor: pointer; font-family: inherit;
+      padding: 4px 2px; border-radius: 5px; transition: background-color .12s ease, opacity .12s ease; }
+    button.link:not(:disabled):hover { background: rgba(0, 0, 0, .05); }
+    button.link:not(:disabled):active { background: rgba(0, 0, 0, .10); transform: translateY(1px); }
+    button.link:focus-visible { outline: 2px solid #4a7fd4; outline-offset: 2px; }
+    body[data-theme="dark"] button.link:not(:disabled):hover { background: rgba(255, 255, 255, .08); }
+    body[data-theme="dark"] button.link:not(:disabled):active { background: rgba(255, 255, 255, .14); }
+    button.link.danger { color: #c0392b; }
+    body[data-theme="dark"] button.link.danger { color: #ff8072; }
+
+    .badge { font-size: 11.5px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; line-height: 1.5; }
+    .badge.restart { background: #fff3e0; color: #a86400; border: 1px solid #f0cd96; }
+    .badge.login { background: #e8f0fd; color: #2f6bd0; border: 1px solid #c3d3ec; }
+    body[data-theme="dark"] .badge.restart { background: #3d2f16; color: #ffc46b; border-color: #6b5024; }
+    body[data-theme="dark"] .badge.login { background: #253a56; color: #a8caf5; border-color: #3a5a86; }
+
+    .divider { height: 1px; background: #eef0f3; margin: 12px -18px 10px; }
+    body[data-theme="dark"] .divider { background: #333336; }
+    .subhead { font-size: 12.5px; color: #7c828d; margin: 0 0 10px; }
+    body[data-theme="dark"] .subhead { color: #9a9a9f; }
+
+    .footer { height: 52px; flex: 0 0 52px; border-top: 1px solid #e5e7eb; background: #fafbfc; display: flex;
+      align-items: center; justify-content: space-between; padding: 0 14px; gap: 10px; font-size: 12.5px; }
+    body[data-theme="dark"] .footer { background: #202022; border-color: #3a3a3c; }
+    .footer .l, .footer .r { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .msg { color: #2e8b57; }
+    .msg.warn { color: #a86400; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    body[data-theme="dark"] .msg.warn { color: #ffc46b; }
+    .msg.dirty { color: #a86400; white-space: nowrap; }
+    body[data-theme="dark"] .msg.dirty { color: #ffc46b; }
+
+    /* ---- 点击后的按钮瞬态：应用成功 -> 绿色「✓ 已应用」；取消 -> 蓝色「已取消」 ----
+       两者都覆盖 disabled 的降透明度，否则按钮在写入完成后已变灰、瞬态会被压暗看不清 */
+    button.btn.primary.flash-ok { background: #2e8b57; border-color: #2e8b57; box-shadow: 0 0 0 3px rgba(46, 139, 87, .22); }
+    button.btn.primary.flash-ok:hover { background: #27794c; }
+    button.btn.primary.flash-ok:disabled { opacity: 1; }
+    button.btn.flash-cancel { background: #e8f0fd; border-color: #a9c3e8; color: #2f6bd0;
+      box-shadow: 0 0 0 3px rgba(74, 127, 212, .18); }
+    button.btn.flash-cancel:hover { background: #dfeafd; }
+    button.btn.flash-cancel:disabled { opacity: 1; }
+    body[data-theme="dark"] button.btn.flash-cancel { background: #2c3f5c; border-color: #4a6f9e; color: #bcd6ff;
+      box-shadow: 0 0 0 3px rgba(120, 170, 245, .18); }
+
+    /* 顶部 toast：应用 / 取消等操作的醒目反馈 */
+    .toast { position: fixed; top: 14px; left: 50%; transform: translate(-50%, -10px);
+      background: #2e8b57; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 999px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .18); opacity: 0; transition: opacity .22s ease, transform .22s ease;
+      pointer-events: none; z-index: 90; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .toast.warn { background: #c0392b; }
+    body[data-theme="dark"] .toast { box-shadow: 0 4px 14px rgba(0, 0, 0, .5); }
+
+    /* 恢复默认设置的确认浮层（[hidden] 必须显式声明，否则被 display:flex 覆盖） */
+    #overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); display: flex;
+      align-items: center; justify-content: center; z-index: 50; }
+    #overlay[hidden] { display: none; }
+    #overlay .box { background: #fff; border-radius: 12px; padding: 18px 20px; width: 320px; font-size: 13px; }
+    body[data-theme="dark"] #overlay .box { background: #2e2e30; color: #f2f2f7; }
+    #overlay .box p { margin: 0 0 12px; line-height: 1.6; }
+    #overlay .box label { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    /* label 的 display:flex 会覆盖 hidden 属性，需显式声明（与 #overlay[hidden] 同理） */
+    #overlay .box label[hidden] { display: none; }
+    #overlay .acts { display: flex; justify-content: flex-end; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="main">
+      <nav class="nav" id="nav"></nav>
+      <div class="pane" id="pane"></div>
+    </div>
+    <div class="footer">
+      <div class="l">
+        <button class="link danger" id="btnReset"></button>
+        <span id="msgL"></span>
+      </div>
+      <div class="r">
+        <span id="msgWarn"></span>
+        <button class="btn" id="btnCancel"></button>
+        <button class="btn primary" id="btnApply" disabled></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="overlay" hidden>
+    <div class="box">
+      <p id="ovText"></p>
+      <label id="ovKeepRow"><input type="checkbox" id="ovKeepName" /> <span id="ovKeepLbl"></span></label>
+      <div class="acts">
+        <button class="btn" id="ovCancel"></button>
+        <button class="btn" id="ovOk" style="color:#c0392b"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="engine/config-schema.js"></script>
+  <script src="engine/i18n.js"></script>
+  <script src="engine/ai-talk.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

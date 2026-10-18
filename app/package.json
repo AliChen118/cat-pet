@@ -1,0 +1,72 @@
+{
+  "name": "cat-desktop-pet",
+  "version": "1.0.0",
+  "description": "Q版长毛银渐层桌面宠物 - 类QQ宠物陪伴程序",
+  "main": "main.js",
+  "author": "cat-pet",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node ../tools/test_logic.js",
+    "dist": "electron-builder --win portable nsis",
+    "dist:win": "electron-builder --win portable nsis",
+    "dist:linux": "electron-builder --linux AppImage",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.catpet.desktop",
+    "productName": "CatDesktopPet",
+    "asar": true,
+    "compression": "maximum",
+    "electronDist": "node_modules/electron/dist",
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/**/*",
+      "!dist/**",
+      "!tools/**",
+      "!_*.js",
+      "!*.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable"
+        },
+        {
+          "target": "nsis"
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "CatDesktopPet-Portable-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "artifactName": "CatDesktopPet-Setup-${version}.exe"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "Game",
+      "artifactName": "CatDesktopPet-${version}-x86_64.AppImage"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}

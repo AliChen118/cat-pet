@@ -1,0 +1,150 @@
+name: Build & Release
+
+# 触发条件：
+#   - 推送 v* 标签（如 v1.9.6）→ 构建 + 创建 GitHub Release 并附上全部产物
+#   - 手动触发（workflow_dispatch）→ 仅构建，产物可在 Actions 运行页下载
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------- 测试：逻辑回归（348 断言） ----------
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Run logic tests
+        working-directory: app
+        run: npm test
+
+  # ---------- Windows 构建：便携版 + 安装版 ----------
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-win-${{ hashFiles('app/package-lock.json') }}
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Windows executables
+        working-directory: app
+        run: npm run dist:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+          if-no-files-found: error
+
+  # ---------- Linux 构建：AppImage ----------
+  build-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-linux-${{ hashFiles('app/package-lock.json') }}
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Linux AppImage
+        working-directory: app
+        run: npm run dist:linux
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+  # ---------- 源码打包：zip + tar.gz ----------
+  package-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read app version
+        id: ver
+        run: echo "version=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Package source (zip + tar.gz)
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          git archive --format=zip --prefix="CatDesktopPet-${V}/" -o "CatDesktopPet-${V}-source.zip" HEAD
+          git archive --format=tar.gz --prefix="CatDesktopPet-${V}/" -o "CatDesktopPet-${V}-source.tar.gz" HEAD
+          ls -la CatDesktopPet-*-source.*
+
+      - name: Upload source artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-dist
+          path: |
+            CatDesktopPet-*-source.zip
+            CatDesktopPet-*-source.tar.gz
+          if-no-files-found: error
+
+  # ---------- 发布：仅 v* 标签触发，产物作为 Release 附件 ----------
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-linux, package-source]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: release-assets
+
+      - name: List release assets
+        run: ls -la release-assets/
+
+      - name: Attach artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

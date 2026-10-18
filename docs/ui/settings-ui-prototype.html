@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>设置窗口 UI 原型 — 小猫桌面宠物</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  body { background: #eceef2; padding: 24px 20px 40px; display: flex; justify-content: center; color: #1d1d1f; }
+  html[data-theme="dark"] body { background: #141416; color: #f2f2f7; }
+
+  .page { width: 720px; }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; font-size: 12.5px; color: #5a6070; flex-wrap: wrap; }
+  html[data-theme="dark"] .toolbar { color: #9a9a9f; }
+  .seg { display: flex; border: 1px solid #cfd4dd; border-radius: 7px; overflow: hidden; background: #fff; }
+  html[data-theme="dark"] .seg { background: #2e2e30; border-color: #46464a; }
+  .seg button { border: 0; background: transparent; padding: 5px 11px; font-size: 12.5px; color: #5a6070; cursor: pointer; font-family: inherit; }
+  html[data-theme="dark"] .seg button { color: #b9b9be; }
+  .seg button.on { background: #4a7fd4; color: #fff; }
+  .spacer { flex: 1; }
+
+  .win { width: 720px; height: 604px; background: #fff; border: 1px solid #d5d9e0; border-radius: 10px;
+         box-shadow: 0 14px 34px rgba(20, 30, 50, .14); display: flex; flex-direction: column; overflow: hidden; }
+  html[data-theme="dark"] .win { background: #252527; border-color: #3a3a3c; box-shadow: 0 14px 34px rgba(0, 0, 0, .5); }
+
+  .titlebar { height: 38px; flex: 0 0 38px; display: flex; align-items: center; justify-content: space-between;
+              padding: 0 13px; background: #f7f8fa; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+  html[data-theme="dark"] .titlebar { background: #202022; border-color: #3a3a3c; }
+  .titlebar .name { font-weight: 500; }
+  .titlebar .btns { display: flex; gap: 15px; color: #9aa0a9; font-size: 13px; }
+
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  .nav { width: 150px; flex: 0 0 150px; background: #fafbfc; border-right: 1px solid #e5e7eb; padding: 10px 8px;
+         display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  html[data-theme="dark"] .nav { background: #202022; border-color: #3a3a3c; }
+  .nav button { text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px;
+                font-size: 13px; color: #5a6070; cursor: pointer; font-family: inherit; }
+  html[data-theme="dark"] .nav button { color: #b9b9be; }
+  .nav button:hover { background: #f0f2f6; }
+  html[data-theme="dark"] .nav button:hover { background: #2c2c2f; }
+  .nav button.on { background: #e8f0fd; color: #2f6bd0; font-weight: 500; }
+  html[data-theme="dark"] .nav button.on { background: #2f4a6e; color: #bcd6ff; }
+
+  .pane { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 22px 24px; }
+  .ghead h3 { margin: 0 0 5px; font-size: 15px; font-weight: 500; }
+  .ghead p { margin: 0 0 14px; font-size: 12.5px; color: #7c828d; line-height: 1.6; }
+  html[data-theme="dark"] .ghead p { color: #9a9a9f; }
+
+  .row { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 12px; align-items: start;
+         padding: 10px 0; border-bottom: 1px solid #eef0f3; font-size: 13px; }
+  .row:last-child { border-bottom: 0; }
+  html[data-theme="dark"] .row { border-color: #333336; }
+  .row > .lbl { color: #4a4f57; padding-top: 4px; }
+  html[data-theme="dark"] .row > .lbl { color: #c9c9ce; }
+  .ctl { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .note { font-size: 12px; color: #8a8f98; line-height: 1.5; }
+  .hint { font-size: 12px; color: #8a8f98; line-height: 1.6; }
+  .err { font-size: 12px; color: #c0392b; }
+  html[data-theme="dark"] .err { color: #ff8072; }
+
+  input[type=text], select { border: 1px solid #d5d9e0; border-radius: 7px; padding: 5px 9px; font-size: 13px;
+    font-family: inherit; background: #fff; color: #1d1d1f; outline: none; min-width: 0; }
+  input[type=text]:focus, select:focus { border-color: #4a7fd4; box-shadow: 0 0 0 3px rgba(74, 127, 212, .14); }
+  input[type=text].bad { border-color: #d64545; box-shadow: 0 0 0 3px rgba(214, 69, 69, .13); }
+  input[type=text][readonly] { background: #f5f6f8; color: #6e737d; }
+  html[data-theme="dark"] input[type=text], html[data-theme="dark"] select { background: #2e2e30; border-color: #46464a; color: #f2f2f7; }
+  html[data-theme="dark"] input[type=text][readonly] { background: #29292b; color: #9a9a9f; }
+  input[type=checkbox] { width: 15px; height: 15px; accent-color: #4a7fd4; margin: 0; flex: 0 0 auto; }
+  input[type=range] { accent-color: #4a7fd4; flex: 1; min-width: 80px; height: 18px; }
+  .val { font-size: 12.5px; color: #5a6070; min-width: 66px; text-align: right; font-variant-numeric: tabular-nums; }
+  html[data-theme="dark"] .val { color: #b9b9be; }
+
+  button.btn { border: 1px solid #d5d9e0; background: #fff; border-radius: 7px; padding: 5px 12px; font-size: 12.5px;
+               color: #3a4048; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  button.btn:hover { background: #f4f6f9; border-color: #c3c9d3; }
+  button.btn.primary { background: #4a7fd4; border-color: #4a7fd4; color: #fff; }
+  button.btn.primary:hover { background: #3f72c3; }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  html[data-theme="dark"] button.btn { background: #2e2e30; border-color: #46464a; color: #e4e4e9; }
+  html[data-theme="dark"] button.btn.primary { background: #4a7fd4; border-color: #4a7fd4; color: #fff; }
+  button.link { border: 0; background: transparent; font-size: 12.5px; cursor: pointer; font-family: inherit; padding: 4px 2px; }
+  button.link.danger { color: #c0392b; }
+  html[data-theme="dark"] button.link.danger { color: #ff8072; }
+
+  .badge { font-size: 11.5px; padding: 2px 7px; border-radius: 999px; white-space: nowrap; line-height: 1.5; }
+  .badge.restart { background: #fff3e0; color: #a86400; border: 1px solid #f0cd96; }
+  .badge.login { background: #e8f0fd; color: #2f6bd0; border: 1px solid #c3d3ec; }
+  html[data-theme="dark"] .badge.restart { background: #3d2f16; color: #ffc46b; border-color: #6b5024; }
+  html[data-theme="dark"] .badge.login { background: #253a56; color: #a8caf5; border-color: #3a5a86; }
+
+  .divider { height: 1px; background: #eef0f3; margin: 14px -22px 12px; }
+  html[data-theme="dark"] .divider { background: #333336; }
+  .subhead { font-size: 12.5px; color: #7c828d; margin: 0 0 10px; }
+
+  .footer { height: 56px; flex: 0 0 56px; border-top: 1px solid #e5e7eb; background: #fafbfc; display: flex;
+            align-items: center; justify-content: space-between; padding: 0 16px; gap: 12px; font-size: 12.5px; }
+  html[data-theme="dark"] .footer { background: #202022; border-color: #3a3a3c; }
+  .footer .l, .footer .r { display: flex; align-items: center; gap: 10px; }
+  .msg { color: #2e8b57; }
+  .msg.warn { color: #a86400; display: flex; align-items: center; gap: 8px; }
+  html[data-theme="dark"] .msg.warn { color: #ffc46b; }
+
+  .legend { margin: 16px 0 0; font-size: 12px; color: #6e737d; line-height: 1.9; }
+  html[data-theme="dark"] .legend { color: #9a9a9f; }
+  .legend b { font-weight: 500; color: #1d1d1f; }
+  html[data-theme="dark"] .legend b { color: #f2f2f7; }
+  .legend code { background: #fff; border: 1px solid #e0e3e9; border-radius: 4px; padding: 1px 5px; font-size: 11.5px; }
+  html[data-theme="dark"] .legend code { background: #2e2e30; border-color: #46464a; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="toolbar">
+    <span>原型预览：</span>
+    <span class="seg" id="segTheme">
+      <button data-theme="light" class="on">浅色</button>
+      <button data-theme="dark">深色</button>
+    </span>
+    <span class="seg" id="segLang">
+      <button data-lang="zh" class="on">中文</button>
+      <button data-lang="en">English</button>
+    </span>
+    <span class="spacer"></span>
+    <span>点击左侧分组浏览 · 控件可实际操作</span>
+  </div>
+
+  <div class="win">
+    <div class="titlebar">
+      <span class="name" id="tbTitle">设置 — 小银</span>
+      <span class="btns">— □ ×</span>
+    </div>
+    <div class="main">
+      <nav class="nav" id="nav"></nav>
+      <div class="pane" id="pane"></div>
+    </div>
+    <div class="footer">
+      <div class="l">
+        <button class="link danger" id="btnReset">恢复默认设置</button>
+        <span id="msgL"></span>
+      </div>
+      <div class="r">
+        <span id="msgWarn"></span>
+        <button class="btn" id="btnCancel">取消</button>
+        <button class="btn primary" id="btnApply" disabled>应用</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var GROUPS = [
+    {
+      id: 'pet', zh: '宠物', en: 'Pet',
+      dzh: '给宠物起名、设定称呼与体型。名字会同时出现在气泡文案、托盘提示与窗口标题中。',
+      den: 'Name your pet, set how it addresses you, and adjust its size. The name appears in bubbles, the tray tooltip and this window title.',
+      items: [
+        { k: 'petName', t: 'text', zh: '宠物名字', en: 'Pet name', v: '小银', max: 12,
+          hzh: '1–12 个字符；自动去除首尾空白，禁止控制字符与换行。',
+          hen: '1–12 characters. Leading/trailing spaces are trimmed; control characters are blocked.' },
+        { k: 'ownerName', t: 'text', zh: '主人称呼', en: 'Your title', v: '主人', max: 8, allowEmpty: true,
+          hzh: '宠物在气泡里对你的称呼，如「主人」「铲屎官」；留空则使用通用称呼。',
+          hen: 'How the pet addresses you in bubbles. Leave blank for a generic term.' },
+        { k: 'showNameInBubble', t: 'switch', zh: '气泡中带上名字', en: 'Name in bubbles', v: true,
+          nzh: '气泡文案中出现「{name}」', nen: 'Bubbles include “{name}”' },
+        { k: 'size', t: 'range', zh: '体型大小', en: 'Pet size', v: 62, min: 34, max: 88, step: 2, fmt: 'pct',
+          hzh: '与滚轮缩放、右键菜单「放大 / 缩小」共享同一状态，任一入口改动三处同步。',
+          hen: 'Shared with scroll-wheel zoom and the context-menu zoom items — all three stay in sync.' }
+      ]
+    },
+    {
+      id: 'startup', zh: '启动与运行', en: 'Startup & running',
+      dzh: '控制开机行为与窗口位置的记忆策略。',
+      den: 'Control launch-at-login behaviour and whether the window position is remembered.',
+      items: [
+        { k: 'autoStart', t: 'switch', zh: '开机自启动', en: 'Launch at login', v: false, badge: 'login',
+          nzh: '登录 Windows 后自动运行宠物', nen: 'Start the pet after you sign in to Windows' },
+        { k: 'startHidden', t: 'switch', zh: '静默启动', en: 'Start hidden', v: true, badge: 'restart',
+          nzh: '开机自启时不弹窗口，静默驻留托盘', nen: 'Stay in the tray without showing the window at login' },
+        { k: 'rememberPosition', t: 'switch', zh: '记住窗口位置', en: 'Remember position', v: true,
+          nzh: '退出时保存位置，下次原样恢复', nen: 'Save the position on exit and restore it next time' },
+        { k: 'singleInstance', t: 'switch', zh: '单实例运行', en: 'Single instance', v: true, ro: true,
+          nzh: '禁止重复启动多个宠物实例', nen: 'Prevent multiple pet instances from running',
+          hzh: '该项固定为开启，不提供修改入口。', hen: 'Always on; no user-facing toggle.' }
+      ]
+    },
+    {
+      id: 'interact', zh: '交互', en: 'Interaction',
+      dzh: '鼠标、滚轮与快捷键的响应方式。',
+      den: 'How the pet responds to the mouse, the scroll wheel and hotkeys.',
+      items: [
+        { k: 'clickThrough', t: 'switch', zh: '点击穿透', en: 'Click-through', v: false,
+          nzh: '鼠标事件穿透到下层窗口', nen: 'Pass mouse events through to the window below',
+          hzh: '开启后宠物不再响应点击；仍可从托盘菜单或全局快捷键恢复，不会把自己锁死。',
+          hen: 'The pet stops responding to clicks, but the tray menu and hotkey still work — you can always turn it back off.' },
+        { k: 'wheelZoom', t: 'switch', zh: '滚轮缩放', en: 'Scroll-wheel zoom', v: true,
+          nzh: '悬停宠物身上滚动滚轮调整体型', nen: 'Scroll over the pet to resize it' },
+        { k: 'hotkeyCall', t: 'select', zh: '呼喊快捷键', en: 'Call hotkey', v: 'Ctrl+Shift+C',
+          opts: [
+            { v: 'Ctrl+Shift+C' }, { v: 'Ctrl+Alt+C' }, { v: 'Alt+Shift+C' },
+            { v: 'none', zh: '无（关闭）', en: 'None (off)' }
+          ],
+          hzh: '全局生效，在任意程序下都能把宠物喊过来；被其他程序占用时自动保留原设置并提示。',
+          hen: 'Works globally. If the key is taken by another app, the previous value is kept and you get a notice.' },
+        { k: 'trayDoubleClickCall', t: 'switch', zh: '双击托盘呼喊', en: 'Tray double-click calls', v: true,
+          nzh: '双击托盘图标触发呼喊', nen: 'Double-clicking the tray icon calls the pet' }
+      ]
+    },
+    {
+      id: 'sound', zh: '声音与通知', en: 'Sound & notifications',
+      dzh: '音效、气泡与系统通知的开关与强度。',
+      den: 'Toggles and intensity for sound effects, speech bubbles and system notifications.',
+      items: [
+        { k: 'muted', t: 'switch', zh: '静音', en: 'Mute', v: false,
+          nzh: '关闭全部音效', nen: 'Turn off all sound effects' },
+        { k: 'volume', t: 'range', zh: '音量', en: 'Volume', v: 70, min: 0, max: 100, step: 5, fmt: 'pct',
+          blockedBy: 'muted' },
+        { k: 'bubbles', t: 'switch', zh: '气泡提示', en: 'Speech bubbles', v: true,
+          nzh: '显示宠物说话气泡', nen: 'Show the pet’s speech bubbles' },
+        { k: 'bubbleDuration', t: 'range', zh: '气泡停留时长', en: 'Bubble duration', v: 2200,
+          min: 1200, max: 6000, step: 200, fmt: 'ms', blockedBy: 'bubbles' },
+        { k: 'notifications', t: 'switch', zh: '系统通知', en: 'System notifications', v: false,
+          nzh: '属性过低或长时间无人互动时发送系统通知', nen: 'Notify you when needs are low or you have been away a while',
+          hzh: '与「宠物自己喵叫」是两条独立通道：后者始终只在气泡里进行，本项才会弹到系统通知中心。',
+          hen: 'Separate from the pet’s own meowing: that always happens in a bubble, while this one reaches the system notification centre.' },
+        { k: 'notifyInterval', t: 'range', zh: '通知最短间隔', en: 'Minimum notify interval', v: 30,
+          min: 5, max: 120, step: 5, fmt: 'min', requires: 'notifications' }
+      ]
+    },
+    {
+      id: 'appear', zh: '外观与主题', en: 'Appearance & theme',
+      dzh: '配色、语言、字号与动效偏好。',
+      den: 'Colours, language, text scaling and motion preferences.',
+      items: [
+        { k: 'theme', t: 'select', zh: '主题', en: 'Theme', v: 'light',
+          opts: [
+            { v: 'light', zh: '浅色', en: 'Light' },
+            { v: 'dark', zh: '深色', en: 'Dark' },
+            { v: 'auto', zh: '跟随系统', en: 'Follow system' }
+          ] },
+        { k: 'language', t: 'select', zh: '界面语言', en: 'Language', v: 'zh-CN',
+          opts: [{ v: 'zh-CN', zh: '简体中文', en: '简体中文' }, { v: 'en-US', zh: 'English', en: 'English' }],
+          hzh: '设置窗口与右键菜单立即切换；宠物气泡从下一句起生效。',
+          hen: 'This window and the context menu switch instantly; the pet’s bubbles switch from the next line.' },
+        { k: 'uiScale', t: 'range', zh: '界面文字缩放', en: 'Text scale', v: 100, min: 80, max: 140, step: 10, fmt: 'pct',
+          hzh: '影响气泡与右键菜单的字号。', hen: 'Affects the font size of bubbles and the context menu.' },
+        { k: 'opacity', t: 'range', zh: '整体不透明度', en: 'Opacity', v: 100, min: 40, max: 100, step: 5, fmt: 'pct' },
+        { k: 'showShadow', t: 'switch', zh: '显示地面阴影', en: 'Ground shadow', v: true,
+          nzh: '绘制宠物脚下的椭圆阴影', nen: 'Draw the soft ellipse under the pet' },
+        { k: 'showParticles', t: 'switch', zh: '显示粒子特效', en: 'Particle effects', v: true,
+          nzh: '爱心 / Zzz / 星星 / 食物屑等粒子', nen: 'Hearts, Zzz, stars and food crumbs',
+          hzh: '关闭后不再发射新粒子，已在场的粒子自然消散。',
+          hen: 'When off, no new particles spawn; existing ones fade out naturally.' },
+        { k: 'reduceMotion', t: 'switch', zh: '减少动态效果', en: 'Reduce motion', v: false,
+          nzh: '关闭程序化微动与持续动画，降低 CPU 占用', nen: 'Stop procedural idle motion to lower CPU usage',
+          hzh: '适合低性能设备，或对持续动态效果敏感的用户。',
+          hen: 'Useful on low-end machines or if you are sensitive to constant motion.' }
+      ]
+    },
+    {
+      id: 'behavior', zh: '行为与活动', en: 'Behaviour',
+      dzh: '无交互时宠物的活跃程度与自主行为边界。',
+      den: 'How active the pet is on its own, and what autonomous behaviour is allowed.',
+      items: [
+        { k: 'activityLevel', t: 'select', zh: '活跃度', en: 'Activity level', v: 'normal',
+          opts: [
+            { v: 'low', zh: '安静', en: 'Quiet' },
+            { v: 'normal', zh: '标准', en: 'Normal' },
+            { v: 'high', zh: '活泼', en: 'Lively' }
+          ],
+          hzh: '决定待机时的决策间隔与走 / 跑 / 跳的概率分布。',
+          hen: 'Sets how often the pet makes a new decision and how likely it is to walk, run or jump.' },
+        { k: 'callInterval', t: 'range', zh: '主动呼喊间隔', en: 'Call interval', v: 75,
+          min: 30, max: 300, step: 15, fmt: 'secLong',
+          hzh: '多久无人互动后主动喵叫求关注。', hen: 'How long without interaction before the pet asks for attention.' },
+        { k: 'allowSleep', t: 'switch', zh: '允许睡觉', en: 'Allow sleeping', v: true,
+          nzh: '精力低时趴下睡觉', nen: 'Let the pet nap when energy is low' },
+        { k: 'allowRun', t: 'switch', zh: '允许奔跑', en: 'Allow running', v: true,
+          nzh: '允许快速跑动', nen: 'Allow fast running across the screen' }
+      ]
+    },
+    {
+      id: 'data', zh: '数据与存储', en: 'Data & storage',
+      dzh: '配置文件的位置、保存节奏与备份策略。',
+      den: 'Where data lives, how often it is saved, and how backups are kept.',
+      items: [
+        { k: 'dataDir', t: 'path', zh: '数据存储位置', en: 'Data folder',
+          v: 'C:\\Users\\…\\AppData\\Roaming\\cat-desktop-pet', badge: 'restart',
+          btns: [
+            { id: 'browse', zh: '浏览…', en: 'Browse…' },
+            { id: 'open', zh: '打开目录', en: 'Open folder' }
+          ],
+          hzh: '切换目录后需要重启应用；选择新目录时会先复制数据再切换，失败自动回滚、不删除原数据。',
+          hen: 'Changing the folder requires a restart. Data is copied before switching; on failure it rolls back without deleting anything.' },
+        { k: 'autoSave', t: 'switch', zh: '自动保存进度', en: 'Auto-save progress', v: true,
+          nzh: '定期把位置与属性写盘', nen: 'Periodically save position and needs to disk' },
+        { k: 'saveInterval', t: 'range', zh: '保存间隔', en: 'Save interval', v: 5, min: 5, max: 120, step: 5, fmt: 'sec',
+          requires: 'autoSave' },
+        { k: 'autoBackup', t: 'switch', zh: '自动备份', en: 'Auto backup', v: true,
+          nzh: '每次写入前保留一份配置快照', nen: 'Keep a config snapshot before every write',
+          hzh: '配置损坏时可从快照恢复，避免设置与属性全部丢失。',
+          hen: 'Lets you recover from a corrupted config instead of losing all settings.' },
+        { k: 'backupKeep', t: 'select', zh: '备份保留份数', en: 'Backups kept', v: 3, requires: 'autoBackup',
+          opts: [{ v: 1 }, { v: 2 }, { v: 3 }, { v: 5 }, { v: 10 }] },
+        { t: 'divider' },
+        { t: 'subhead', zh: '配置文件的导入与迁移', en: 'Import and migration' },
+        { t: 'actions', btns: [
+          { id: 'export', zh: '导出配置…', en: 'Export…' },
+          { id: 'import', zh: '导入配置…', en: 'Import…' },
+          { id: 'migrate', zh: '迁移并重启', en: 'Migrate & restart' }
+        ],
+          hintzh: '「导入配置…」会先校验格式并列出将被覆盖的项，确认后才应用；「迁移并重启」仅在数据位置被改动后可点。',
+          hinten: 'Import validates the file and lists what will be overwritten before applying. Migrate is enabled only after the data folder changes.' }
+      ]
+    }
+  ];
+
+  var ITEMS = {};
+  GROUPS.forEach(function (g) {
+    g.items.forEach(function (it) { if (it.k) ITEMS[it.k] = it; });
+  });
+
+  var DEFAULTS = {};
+  Object.keys(ITEMS).forEach(function (k) { DEFAULTS[k] = ITEMS[k].v; });
+
+  var cur = 'pet';
+  var lang = 'zh';
+  var vals = Object.assign({}, DEFAULTS);
+  var saved = Object.assign({}, DEFAULTS);
+
+  var $nav = document.getElementById('nav');
+  var $pane = document.getElementById('pane');
+  var $tbTitle = document.getElementById('tbTitle');
+  var $msgL = document.getElementById('msgL');
+  var $msgWarn = document.getElementById('msgWarn');
+  var $btnReset = document.getElementById('btnReset');
+  var $btnCancel = document.getElementById('btnCancel');
+  var $btnApply = document.getElementById('btnApply');
+
+  function tr(zh, en) { return lang === 'zh' ? zh : en; }
+  function subst(s) {
+    var out = String(s);
+    out = out.replace(/\{name\}/g, vals.petName || DEFAULTS.petName);
+    out = out.replace(/\{owner\}/g, vals.ownerName || DEFAULTS.ownerName);
+    return out;
+  }
+
+  function fmtVal(it, v) {
+    var u = { pct: ['%', '%'], sec: [' 秒', ' s'], ms: [' 秒', ' s'], min: [' 分钟', ' min'] };
+    if (it.fmt === 'ms') return (Number(v) / 1000).toFixed(1) + (lang === 'zh' ? ' 秒' : ' s');
+    if (it.fmt === 'secLong') {
+      var m = Math.floor(Number(v) / 60), s = Number(v) % 60;
+      if (lang !== 'zh') return (m ? m + ' min ' : '') + s + ' s';
+      return (m ? m + ' 分 ' : '') + s + ' 秒';
+    }
+    if (u[it.fmt]) return v + u[it.fmt][lang === 'zh' ? 0 : 1];
+    return String(v);
+  }
+
+  function isDisabled(it) {
+    if (it.ro) return true;
+    if (it.blockedBy && vals[it.blockedBy]) return true;
+    if (it.requires && !vals[it.requires]) return true;
+    return false;
+  }
+
+  function badgeHtml(b) {
+    if (!b) return '';
+    var txt = b === 'restart' ? tr('重启后生效', 'Restart to apply') : tr('下次登录生效', 'Applies next sign-in');
+    return '<span class="badge ' + b + '">' + txt + '</span>';
+  }
+
+  function ctlHtml(it) {
+    var dis = isDisabled(it) ? ' disabled' : '';
+    var v = vals[it.k];
+
+    if (it.t === 'text') {
+      var w = Math.max(110, Math.min(220, it.max * 17));
+      return '<div class="ctl">'
+        + '<input type="text" data-k="' + it.k + '" value="' + esc(v) + '" style="width:' + w + 'px"' + dis + ' />'
+        + '<div class="err" data-for="' + it.k + '" hidden></div>'
+        + (it.hzh ? '<div class="hint">' + esc(subst(tr(it.hzh, it.hen))) + '</div>' : '')
+        + '</div>';
+    }
+
+    if (it.t === 'switch') {
+      return '<div class="ctl"><label class="inline">'
+        + '<input type="checkbox" data-k="' + it.k + '"' + (v ? ' checked' : '') + dis + ' />'
+        + '<span class="note">' + esc(subst(tr(it.nzh, it.nen))) + '</span></label>'
+        + (it.hzh ? '<div class="hint">' + esc(subst(tr(it.hzh, it.hen))) + '</div>' : '')
+        + '</div>';
+    }
+
+    if (it.t === 'range') {
+      return '<div class="ctl"><div class="inline">'
+        + '<input type="range" data-k="' + it.k + '" min="' + it.min + '" max="' + it.max + '" step="' + it.step + '"'
+        + ' value="' + v + '"' + dis + ' />'
+        + '<span class="val" data-val="' + it.k + '">' + esc(fmtVal(it, v)) + '</span></div>'
+        + (it.hzh ? '<div class="hint">' + esc(subst(tr(it.hzh, it.hen))) + '</div>' : '')
+        + '</div>';
+    }
+
+    if (it.t === 'select') {
+      var opts = it.opts.map(function (o) {
+        var text = (o.zh || o.en) ? tr(o.zh || o.v, o.en || o.v) : String(o.v);
+        return '<option value="' + esc(o.v) + '"' + (String(o.v) === String(v) ? ' selected' : '') + '>' + esc(text) + '</option>';
+      }).join('');
+      return '<div class="ctl"><select data-k="' + it.k + '" style="max-width:210px"' + dis + '>' + opts + '</select>'
+        + (it.hzh ? '<div class="hint">' + esc(subst(tr(it.hzh, it.hen))) + '</div>' : '')
+        + '</div>';
+    }
+
+    if (it.t === 'path') {
+      var btns = (it.btns || []).map(function (b) {
+        return '<button class="btn" data-act="' + b.id + '">' + esc(tr(b.zh, b.en)) + '</button>';
+      }).join('');
+      return '<div class="ctl"><div class="inline">'
+        + '<input type="text" data-k="' + it.k + '" value="' + esc(v) + '" readonly style="flex:1;font-size:12px;min-width:220px" />'
+        + btns + '</div>'
+        + (it.hzh ? '<div class="hint">' + esc(subst(tr(it.hzh, it.hen))) + '</div>' : '')
+        + '</div>';
+    }
+
+    return '';
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderNav() {
+    $nav.innerHTML = GROUPS.map(function (g) {
+      return '<button data-g="' + g.id + '"' + (g.id === cur ? ' class="on"' : '') + '>' + esc(tr(g.zh, g.en)) + '</button>';
+    }).join('');
+  }
+
+  function renderPane() {
+    var g = GROUPS.filter(function (x) { return x.id === cur; })[0];
+    var html = '<div class="ghead"><h3>' + esc(tr(g.zh, g.en)) + '</h3><p>' + esc(tr(g.dzh, g.den)) + '</p></div>';
+
+    g.items.forEach(function (it) {
+      if (it.t === 'divider') { html += '<div class="divider"></div>'; return; }
+      if (it.t === 'subhead') { html += '<p class="subhead">' + esc(tr(it.zh, it.en)) + '</p>'; return; }
+      if (it.t === 'actions') {
+        var bs = it.btns.map(function (b) {
+          return '<button class="btn" data-act="' + b.id + '">' + esc(tr(b.zh, b.en)) + '</button>';
+        }).join('');
+        html += '<div class="ctl" style="gap:8px"><div class="inline">' + bs + '</div>'
+          + '<div class="hint">' + esc(tr(it.hintzh, it.hinten)) + '</div></div>';
+        return;
+      }
+      html += '<div class="row">'
+        + '<div class="lbl">' + esc(tr(it.zh, it.en)) + (it.badge ? ' ' + badgeHtml(it.badge) : '') + '</div>'
+        + ctlHtml(it) + '</div>';
+    });
+
+    $pane.innerHTML = html;
+  }
+
+  function renderFooter() {
+    var n = dirtyCount();
+    $btnApply.disabled = n === 0;
+    $btnCancel.disabled = n === 0;
+    var restart = dirtyRestart();
+    $msgWarn.innerHTML = restart ? ('<span class="msg warn">' + esc(tr('有 ' + restart + ' 项需重启后生效', restart + ' change(s) need a restart')) + ' <button class="link" data-act="restart-app" style="color:inherit;text-decoration:underline">' + esc(tr('立即重启', 'Restart now')) + '</button></span>') : '';
+  }
+
+  function updateTitle() {
+    $tbTitle.textContent = tr('设置', 'Settings') + ' — ' + (vals.petName || DEFAULTS.petName);
+  }
+
+  function render() { renderNav(); renderPane(); renderFooter(); renderChrome(); updateTitle(); }
+
+  function renderChrome() {
+    $btnReset.textContent = tr('恢复默认设置', 'Reset to defaults');
+    $btnCancel.textContent = tr('取消', 'Cancel');
+    $btnApply.textContent = tr('应用', 'Apply');
+  }
+
+  function dirtyKeys() {
+    return Object.keys(DEFAULTS).filter(function (k) { return vals[k] !== saved[k]; });
+  }
+  function dirtyCount() { return dirtyKeys().length; }
+  function dirtyRestart() {
+    return dirtyKeys().filter(function (k) { return ITEMS[k] && ITEMS[k].badge === 'restart'; }).length;
+  }
+
+  function updateValLabel(it, v) {
+    var el = $pane.querySelector('[data-val="' + it.k + '"]');
+    if (el) el.textContent = fmtVal(it, v);
+  }
+
+  function updateEnabled() {
+    Object.keys(ITEMS).forEach(function (k) {
+      var it = ITEMS[k];
+      if (!it.blockedBy && !it.requires) return;
+      var el = $pane.querySelector('[data-k="' + k + '"]');
+      if (el) el.disabled = isDisabled(it);
+    });
+  }
+
+  function validateText(it, el) {
+    var errEl = $pane.querySelector('.err[data-for="' + it.k + '"]');
+    var raw = el.value;
+    var clean = raw.replace(/[\u0000-\u001F\u007F]/g, '');
+    if (clean.length > it.max) clean = clean.slice(0, it.max);
+    if (clean !== raw) el.value = clean;
+
+    var msg = '';
+    if (it.k === 'petName') {
+      if (!clean.trim()) { msg = tr('名字不能为空，将回退为默认「小银」', 'Name cannot be blank — will fall back to “小银”'); }
+    }
+    el.classList.toggle('bad', !!msg);
+    if (errEl) { errEl.hidden = !msg; errEl.textContent = msg; }
+    return clean;
+  }
+
+  function onInput(e) {
+    var el = e.target;
+    var k = el.getAttribute('data-k');
+    if (!k) return;
+    var it = ITEMS[k];
+    if (!it) return;
+    var v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'range') v = Number(el.value);
+    else v = el.value;
+
+    if (it.t === 'text') v = validateText(it, el);
+    vals[k] = v;
+
+    if (k === 'theme') applyThemePreview(v === 'auto' ? autoTheme() : v);
+    if (k === 'language') { setLang(String(v).indexOf('zh') === 0 ? 'zh' : 'en'); render(); return; }
+
+    if (it.t === 'range') updateValLabel(it, v);
+    if (k === 'petName' || k === 'ownerName') { updateTitle(); refreshNames(); }
+    updateEnabled();
+    renderFooter();
+  }
+
+  function autoTheme() {
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+
+  function applyThemePreview(th) {
+    document.documentElement.setAttribute('data-theme', th);
+    var seg = document.getElementById('segTheme');
+    Array.prototype.forEach.call(seg.children, function (x) {
+      x.classList.toggle('on', x.getAttribute('data-theme') === th);
+    });
+  }
+
+  function setLang(code) {
+    lang = code;
+    document.documentElement.setAttribute('lang', code === 'zh' ? 'zh-CN' : 'en');
+    var seg = document.getElementById('segLang');
+    Array.prototype.forEach.call(seg.children, function (x) {
+      x.classList.toggle('on', x.getAttribute('data-lang') === code);
+    });
+  }
+
+  function refreshNames() {
+    if (cur !== 'pet') return;
+    var el = $pane.querySelector('[data-k="showNameInBubble"]');
+    if (!el) return;
+    var note = el.parentNode.querySelector('.note');
+    if (note) note.textContent = subst(tr(ITEMS.showNameInBubble.nzh, ITEMS.showNameInBubble.nen));
+  }
+
+  $nav.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-g]');
+    if (!b) return;
+    cur = b.getAttribute('data-g');
+    renderNav();
+    renderPane();
+    $pane.scrollTop = 0;
+  });
+
+  $pane.addEventListener('input', onInput);
+  $pane.addEventListener('change', onInput);
+
+  $pane.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var a = b.getAttribute('data-act');
+    if (a === 'browse') flash(tr('已打开系统文件夹选择对话框（原型演示）', 'Folder picker would open here (prototype)'));
+    else if (a === 'open') flash(tr('已在资源管理器中定位到数据目录（原型演示）', 'Would open the folder in Explorer (prototype)'));
+    else if (a === 'export') flash(tr('已导出 cat-pet-config-20261015.json（原型演示）', 'Would export cat-pet-config-20261015.json (prototype)'));
+    else if (a === 'import') flash(tr('校验通过，即将列出 4 项将被覆盖（原型演示）', 'Validated — would list 4 overwritten items (prototype)'));
+    else if (a === 'migrate') flash(tr('将先复制数据再切换目录并重启（原型演示）', 'Would copy data, switch folder and restart (prototype)'));
+  });
+
+  $btnApply.addEventListener('click', function () {
+    saved = Object.assign({}, vals);
+    renderFooter();
+    flash(tr('已保存到 config.json', 'Saved to config.json'));
+  });
+
+  $btnCancel.addEventListener('click', function () {
+    vals = Object.assign({}, saved);
+    renderPane();
+    renderFooter();
+    updateTitle();
+    flash(tr('已放弃未保存的改动', 'Unsaved changes discarded'));
+  });
+
+  $btnReset.addEventListener('click', function () {
+    vals = Object.assign({}, DEFAULTS);
+    renderPane();
+    renderFooter();
+    updateTitle();
+    flash(tr('已恢复全部默认设置（原型中不弹出确认对话框）', 'All settings reset to defaults (no confirm dialog in prototype)'), true);
+  });
+
+  $msgWarn.addEventListener('click', function (e) {
+    if (e.target.getAttribute('data-act') === 'restart-app') flash(tr('将重启应用（原型演示）', 'Would restart the app (prototype)'));
+  });
+
+  var flashTimer = null;
+  function flash(text, warn) {
+    $msgL.textContent = text;
+    $msgL.className = warn ? 'msg warn' : 'msg';
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { $msgL.textContent = ''; }, 2600);
+  }
+
+  document.getElementById('segTheme').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-theme]');
+    if (!b) return;
+    var th = b.getAttribute('data-theme');
+    applyThemePreview(th);
+    vals.theme = th;
+    saved.theme = th;
+    renderFooter();
+  });
+
+  document.getElementById('segLang').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-lang]');
+    if (!b) return;
+    setLang(b.getAttribute('data-lang'));
+    vals.language = lang === 'zh' ? 'zh-CN' : 'en-US';
+    saved.language = vals.language;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
