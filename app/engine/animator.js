@@ -27,7 +27,7 @@ const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 const CONTENT_TOP_FALLBACK = {
   idle: 130, walk: 71, run: 70, jump: 130, stretch: 130, drag: 70,
   sleep: 130, eat: 130, play: 130, pet: 130, meow: 130, tailwag: 70, unhappy: 70,
-  bath: 71,
+  bath: 71, lick: 130,
 };
 
 function loadImage(src) {
@@ -78,6 +78,7 @@ class Animator {
     this.frameIndex = 0;
     this.frameTime = 0;
     this.once = false;
+    this.holdMap = null;    // 逐帧停留覆盖：{ 帧索引: 时长秒 }，null = 全部用 1/fps
 
     /* ---- 待机眨眼控制（仅 idle 姿态生效） ----
      * blinkCfg 由渲染进程按设置写入；null = 保持旧的整序列循环。
@@ -144,7 +145,8 @@ class Animator {
   /**
    * 切换姿态；fade 为状态交叉淡化时长（秒）。
    * opts.once: true 时顺序播放到最后一帧后定格（跳跃/伸懒腰等单次动作）；
-   * opts.startAt: 起始帧索引（下落状态直接从腾空帧开始）。
+   * opts.startAt: 起始帧索引（下落状态直接从腾空帧开始）；
+   * opts.hold: { 帧索引: 秒 } 逐帧覆盖停留时长（如舔爪主帧加长），其余帧仍用 1/fps。
    */
   play(name, fade = 0.18, opts = {}) {
     if (!this.has(name) || this.current === name) return;
@@ -155,6 +157,7 @@ class Animator {
     this.blend = 0;
     this.fadeDur = Math.max(0.001, fade);
     this.once = !!opts.once;
+    this.holdMap = opts.hold || null;
     this.frameIndex = opts.startAt ? opts.startAt | 0 : 0;
     this.frameTime = 0;
   }
@@ -219,6 +222,8 @@ class Animator {
       // ---- 普通整序列循环（原逻辑） ----
       this.nextIdx = null;
       this.frameTime += dt;
+      // 逐帧停留：opts.hold 覆盖当前帧的停留时长（舔爪主帧要停久一点）
+      const durOf = (i) => (this.holdMap && this.holdMap[i] != null) ? this.holdMap[i] : dur;
       // 单次播放：到最后一帧定格，不再循环（避免跳跃在空中反复蹲起）
       if (this.once && this.frameIndex >= seq.length - 1) {
         this.frameTime = 0;
@@ -226,8 +231,8 @@ class Animator {
       }
       // 用 while 兼容低帧率或长帧间隔，避免丢帧
       let guard = 0;
-      while (this.frameTime >= dur && guard++ < 16) {
-        this.frameTime -= dur;
+      while (this.frameTime >= durOf(this.frameIndex) && guard++ < 16) {
+        this.frameTime -= durOf(this.frameIndex);
         this.frameIndex = (this.frameIndex + 1) % seq.length;
         if (this.once && this.frameIndex >= seq.length - 1) { this.frameTime = 0; break; }
       }

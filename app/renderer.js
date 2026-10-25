@@ -62,7 +62,7 @@
   const GOOD_BUBBLE_PROB = 0.06; // 正向气泡触发概率
 
   /** 可被危急需求打断的状态（sleep 与全部交互/物理动作都不可打断） */
-  const INTERRUPTIBLE = { idle: true, walk: true, meow: true, tailwag: true, unhappy: true };
+  const INTERRUPTIBLE = { idle: true, walk: true, meow: true, tailwag: true, unhappy: true, lick: true };
 
   /* ---- 姿态资源：单图为 [path]，多帧为帧序列 + 帧率 ---- */
   const SPRITE_FILES = {
@@ -140,14 +140,30 @@
       'assets/sprites/frames/bath_5.png',
       'assets/sprites/frames/bath_6.png',
     ],
+    lick: [
+      'assets/sprites/frames/lick_1.png',
+      'assets/sprites/frames/lick_2.png',
+      'assets/sprites/frames/lick_3.png',
+      'assets/sprites/frames/lick_4.png',
+    ],
   };
 
   /* ---- 各姿态帧率：呼吸/睡/伸懒腰慢，玩耍/喵叫轻快，走跑最快 ---- */
   const SPRITE_FPS = {
     walk: 11, run: 13, tailwag: 7, unhappy: 2,
     idle: 5, eat: 6, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
-    bath: 6,
+    bath: 6, lick: 6,
   };
+
+  /* ---- 舔爪子节奏：6 fps 基础帧 + 主帧（lick_2 舔舐）额外停留 75 ms ---- */
+  const LICK_FPS = 6;
+  const LICK_HOLD = 0.075;
+  const LICK_FRAME_COUNT = 4;
+  const LICK_CYCLE = LICK_FRAME_COUNT / LICK_FPS + LICK_HOLD;   // 单轮 ≈ 0.742 s
+  const LICK_ROUNDS_EAT = 2;        // 进食结束固定播 2 轮（≈ 1.48 s）
+  const LICK_CD = 90;               // 空闲触发的硬冷却（秒）
+  const LICK_PROB = 0.05;           // 每个决策点的命中概率
+  const LICK_HOLD_MAP = { 1: 1 / LICK_FPS + LICK_HOLD };   // 帧索引 1 = lick_2
 
   /* ================= 运行时状态 ================= */
 
@@ -177,6 +193,9 @@
     stretchTimer: 0,
     bathTimer: 0,
     foamTimer: 0,
+    lickTimer: 0,
+    lickRounds: 0,
+    lastLickAt: -Infinity,
     pendingAfterStretch: null,
   };
 
@@ -971,7 +990,9 @@
           flushStats();
           lastSettleBubble = time;
           showBubble(bubble('eat'), 'eat');
-          return 'idle';
+          pet.lickRounds = LICK_ROUNDS_EAT;   // 吃完必定舔爪子
+          pet.lastLickAt = time;
+          return 'lick';
         }
         return null;
       },
@@ -1163,6 +1184,20 @@
       },
     },
 
+    /* 非交互动作：舔爪子（吃完 / 空闲随机触发，主帧停留略长） */
+    lick: {
+      enter() {
+        animator.play('lick', 0.18, { hold: LICK_HOLD_MAP });
+        const rounds = pet.lickRounds > 0 ? pet.lickRounds : 1;
+        pet.lickRounds = 0;
+        pet.lickTimer = rounds * LICK_CYCLE;
+      },
+      update(_c, dt) {
+        pet.lickTimer -= dt;
+        return pet.lickTimer <= 0 ? 'idle' : null;
+      },
+    },
+
     drag: {
       enter() {
         animator.play('drag', 0.12);
@@ -1191,6 +1226,12 @@
       : config.behavior.activityLevel === 'high' ? -20 : 0;
     const bias = needVoiceOn() ? NP.sleepBias(needTiers()) : 0;
     return clamp(base + adj + bias, 0, 100) / 100;
+  }
+
+  /** 舔爪概率修正：毛不干净（非 good 档）时更爱舔，概率翻倍 */
+  function cleanFactor() {
+    if (!needVoiceOn()) return 1;
+    return needTiers().cleanliness === 'good' ? 1 : 2;
   }
 
   /**
@@ -1327,6 +1368,14 @@
 
     // ---- P9 以趴睡为主、偶尔起身活动 ----
     if (Math.random() < restiness()) return 'sleep';
+
+    // ---- P9.5 空闲舔爪：独立冷却 + 低概率，与权重表解耦（不挤占其他动作） ----
+    // 脏污档概率翻倍：毛不干净时更爱舔；实际间隔约 90–130 s
+    if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()) {
+      pet.lastLickAt = time;
+      pet.lickRounds = Math.random() < 0.5 ? 1 : 2;
+      return 'lick';
+    }
 
     // ---- P10 加权随机表（受四项档位的乘子修正） ----
     const a = activity();
@@ -1732,6 +1781,10 @@
       case 'tailwag':
         // 帧序列已含尾巴摆动，微动仅保留轻微呼吸
         m.bob = Core.wave(at, 2.4, 1.0);
+        break;
+      case 'lick':
+        // 帧序列已含抬爪/舔舐，只留极轻微呼吸（位移，不改尺寸）
+        m.bob = Core.wave(at, 2.0, 0.8);
         break;
       case 'unhappy':
         // 慢速下沉起伏，蔫蔫的感觉（位移，不改尺寸——伤心动作也不得变大变小）

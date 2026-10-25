@@ -2038,6 +2038,47 @@ async function run() {
 
   console.log(`[api] 调用记录: ${[...new Set(apiCalls.map((c) => c[0]))].join(', ') || '(无)'}`);
 
+  /* ---- 4n. 舔爪子动作：帧表 / 节奏 / 两套触发 ---- */
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+    ok(/lick:\s*\[/.test(src) && (src.match(/lick_\d\.png/g) || []).length === 4,
+      '舔爪帧表: lick 注册 4 帧（lick_1..4）');
+    ok(/lick:\s*6/.test(src), '舔爪帧率: 6 fps（与 eat 同速，比 idle 的 5 略快）');
+
+    const mFps = src.match(/const LICK_FPS\s*=\s*([\d.]+)/);
+    const mHold = src.match(/const LICK_HOLD\s*=\s*([\d.]+)/);
+    ok(!!mFps && !!mHold, '舔爪常量: LICK_FPS / LICK_HOLD 已声明');
+    if (mFps && mHold) {
+      const cycle = 4 / Number(mFps[1]) + Number(mHold[1]);
+      ok(Math.abs(cycle - 0.7417) < 0.002,
+        `舔爪节奏: 单轮 ${cycle.toFixed(4)} s（4/6 + 0.075 停留）；进食 2 轮 ≈ ${(cycle * 2).toFixed(2)} s`);
+    }
+
+    ok(/pet\.lickRounds\s*=\s*LICK_ROUNDS_EAT[\s\S]{0,160}return 'lick'/.test(src),
+      '进食结束: 结算饥饿/心情后必定转 lick（原为 idle）');
+    ok(/time - pet\.lastLickAt > LICK_CD[\s\S]{0,160}Math\.random\(\) < LICK_PROB/.test(src),
+      '空闲触发: 先过 90 s 冷却，再按 5% 概率命中');
+    ok(/lick:\s*true/.test(src), '舔爪可打断: INTERRUPTIBLE 含 lick（危急需求能中断）');
+    ok(/\{ hold: LICK_HOLD_MAP \}/.test(src), '主帧停留: play 传入 hold 映射（lick_2 加 75 ms）');
+    ok(!/ACTIONS[^;]*'lick'/.test(fs.readFileSync(path.join(ROOT, 'engine', 'needs-profile.js'), 'utf8')),
+      '权重表解耦: lick 不进 ACTIONS（不挤占走/跑/待机比例）');
+
+    // 行为验证：喂食流程结束后必定接舔爪（不是回 idle）
+    applyLive({
+      behavior: { needVoice: false, restiness: 0 },
+      needs: { decayHunger: 0, decayEnergy: 0, decayHappiness: 0, decayCleanliness: 0, decayAffinity: 0 },
+      runtime: { stats: { hunger: 40, energy: 90, happiness: 80, cleanliness: 90, affinity: 20, xp: 0 } },
+    });
+    const n0 = drawCalls.length;
+    handlers['api:action']('feed');
+    frames(1500, tRef);   // 25 s 模拟：走向食碗 + 4.2 s 进食 + 舔爪 2 轮
+    const seq = drawCalls.slice(n0).map((i) => (i && i.src ? i.src.split('/').pop() : ''));
+    const iEat = seq.findIndex((s) => s.startsWith('eat_'));
+    const iLick = seq.findIndex((s) => s.startsWith('lick_'));
+    ok(iEat >= 0 && iLick > iEat,
+      `进食结束必播舔爪: 出现顺序 eat@${iEat} → lick@${iLick}（舔爪帧共 ${seq.filter((s) => s.startsWith('lick_')).length} 次）`);
+  }
+
   /* ---------------- 断言 ---------------- */
 
   const EXPECTED = ['drag',
@@ -2051,6 +2092,7 @@ async function run() {
     'stretch_1', 'stretch_2', 'stretch_3',
     'sleep_1', 'sleep_2', 'sleep_3',
     'meow_1', 'meow_2', 'meow_3',
+    'lick_1', 'lick_2', 'lick_3', 'lick_4',
     'bath_1', 'bath_2', 'bath_3', 'bath_4', 'bath_5', 'bath_6'];
   // 用全流程累计的渲染记录（含 phase4 新增动作），而非 phase3 的快照
   const allSpritesNow = new Set(drawCalls.map((img) => (img && img.src ? img.src.split('/').pop() : '?')));

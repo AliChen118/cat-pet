@@ -353,7 +353,7 @@ app/                        # 应用源码（Electron）
 │   └── i18n.js           # 中英文案词条（托盘 / 菜单 / 气泡 / 通知 / 设置窗口）
 └── assets/
     ├── sprites/          # 运行期素材：仅 drag.png 单帧（其余姿态走 frames/）
-    │   └── frames/       # 13 个序列帧姿态共 47 张（512×512 透明底）
+    │   └── frames/       # 14 个序列帧姿态共 51 张（512×512 透明底）
     ├── tray_32.png       # 托盘图标
     └── tray_64.png       # 高清托盘图标
 ```
@@ -386,11 +386,11 @@ python tools/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets
        --outdir ../app/assets/sprites/frames --prefix walk_ --height 340
 ```
 
-**姿态清单**（14 个，全部 512×512、内容底边对齐 y=470；其中 13 个已升级为帧序列）：
+**姿态清单**（15 个，全部 512×512、内容底边对齐 y=470；其中 14 个已升级为帧序列）：
 
 `idle` `walk` `run` `jump` `stretch` `drag` `sleep` `eat` `play` `pet` `meow` `tailwag` `unhappy`
 
-**序列帧**：`walk_1..4`、`run_1..4`、`idle_1..4`、`eat_1..4`、`play_1..4`、`pet_1..3`、`jump_1..3`、`stretch_1..3`、`sleep_1..3`、`meow_1..3`、`tailwag_1..4`、`unhappy_1..2`、`bath_1..6`（共 47 张，同规格）。
+**序列帧**：`walk_1..4`、`run_1..4`、`idle_1..4`、`eat_1..4`、`play_1..4`、`pet_1..3`、`jump_1..3`、`stretch_1..3`、`sleep_1..3`、`meow_1..3`、`tailwag_1..4`、`unhappy_1..2`、`bath_1..6`、`lick_1..4`（共 51 张，同规格）。
 
 **单次播放**：`jump` / `stretch` 通过 `animator.play(name, fade, { once: true })` 播放到末帧定格；
 `fall`（下落）以 `{ startAt: 1 }` 直接从腾空帧开始，落地挤压由 squash 模块承担。
