@@ -2078,6 +2078,64 @@ async function run() {
     const iLick = seq.findIndex((s) => s.startsWith('lick_'));
     ok(iEat >= 0 && iLick > iEat,
       `进食结束必播舔爪: 出现顺序 eat@${iEat} → lick@${iLick}（舔爪帧共 ${seq.filter((s) => s.startsWith('lick_')).length} 次）`);
+
+    /* ---- 残影 / 截断回归 ---- */
+    const animSrc = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
+    ok(/NO_FRAME_BLEND\s*=\s*new Set\(\s*\['lick'\]\s*\)/.test(animSrc),
+      '舔爪不参与帧间插值: 相邻帧 IoU 0.86–0.95，叠加会出现双爪/双头残影');
+    ok(/frameDur\(name, idx\)/.test(animSrc) && /clamp01\(frameTime \/ curDur\)/.test(animSrc),
+      '插值窗口按帧实际停留时长计算并夹取到 [0,1]（hold 帧不再出现「满不透明闪一下再消失」）');
+    ok(/pet\.lickEnd\s*=\s*animator\.clock\s*\+/.test(src) && /animator\.clock >= pet\.lickEnd/.test(src),
+      '舔爪结束挂在动画时钟上: animSpeed<1 时不再提前掐断（85% 下 2 轮需 2.24 s）');
+    ok(!/pet\.lickTimer\s*-=/.test(src), '舔爪已弃用墙钟累加计时');
+
+    const lickRun = seq.filter((s) => s.startsWith('lick_')).map((s) => s[5]);
+    const collapsed = lickRun.filter((c, i2) => i2 === 0 || c !== lickRun[i2 - 1]).join('');
+    ok((collapsed.match(/1234/g) || []).length >= 2,
+      `舔爪完整播满 2 轮: ${collapsed}（应含 ≥2 次 1234 循环）`);
+    ok(lickRun.length > 0 && lickRun[lickRun.length - 1] === '4',
+      `舔爪收尾到位: 末帧 lick_${lickRun[lickRun.length - 1]}（必须是 4 收爪，不能停在 2/3，也不能环回 1）`);
+    ok(/LICK_END_TRIM/.test(src) && /rounds \* LICK_CYCLE - LICK_END_TRIM/.test(src),
+      '舔爪收尾提前半帧: 避免淡出时闪回 lick_1「抬爪」');
+  }
+
+  /* ---- 4o. 舔爪残影回归：主帧停留全程只绘制一张图，对照姿态仍保留插值 ---- */
+  try {
+    const AnimCtor2 = vm.runInContext('Animator', sandbox);
+    const g2 = makeCtx();
+    const a2 = new AnimCtor2();
+    a2.sprites.lick = [1, 2, 3, 4].map((i) => ({ src: `lick_${i}.png`, width: 512, height: 512 }));
+    a2.tops.lick = [130, 130, 130, 130];
+    a2.fps.lick = 5;
+    a2.current = 'lick';
+    a2.blend = 1;
+    a2.prev = null;
+    a2.holdMap = { 1: 0.35 };
+
+    const drawsAt = (idx, ft) => {
+      a2.frameIndex = idx;
+      a2.frameTime = ft;
+      const m = drawCalls.length;
+      a2.draw(g2, { x: 320, y: 640, scale: 1, facing: 1, mods: {} });
+      return drawCalls.length - m;
+    };
+
+    // 旧实现：插值按 1/5=200 ms 算，t 在 130 ms 就进窗口、200 ms 时 k=1（下一帧满不透明盖上），
+    // 205–342 ms 又反向淡出 —— 表现为「下一帧闪一下再消失」的残影。现在应全程只画 1 张。
+    const pts = [0, 0.10, 0.13, 0.20, 0.25, 0.30, 0.349];
+    const counts = pts.map((ft) => drawsAt(1, ft));
+    ok(counts.every((c) => c === 1),
+      `舔爪主帧无叠加: 350 ms 停留内逐点绘制 ${counts.join('/')} 张（应全为 1；旧实现在 200 ms 处叠成 2 张）`);
+
+    // 对照：未列入 NO_FRAME_BLEND 的姿态仍走帧间插值（避免误伤其他动作）
+    a2.sprites.idle = [{ src: 'idle_1.png' }, { src: 'idle_2.png' }];
+    a2.fps.idle = 5;
+    a2.holdMap = null;
+    a2.current = 'idle';
+    const idleCount = drawsAt(0, 0.19);
+    ok(idleCount === 2, `其他姿态保留帧间插值: idle 在插值窗口内绘制 ${idleCount} 张（应为 2）`);
+  } catch (e) {
+    errors.push(`舔爪残影回归: ${e.message}`);
   }
 
   /* ---------------- 断言 ---------------- */

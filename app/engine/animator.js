@@ -19,6 +19,16 @@ const SPRITE_CENTER = 256;
 const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 
 /**
+ * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大
+ * （实测 alpha 掩膜 IoU：lick 0.86–0.95，idle 0.97–1.00）。
+ * 插值实现是「当前帧实心 + 下一帧按 k 叠上去」，差异大的姿态会产生
+ * 两个轮廓同时可见的残影（双爪 / 双头），因此这类姿态直接硬切。
+ */
+const NO_FRAME_BLEND = new Set(['lick']);
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
  * 内容顶部静态回退表（sprite 像素坐标，数值越小越高）。
  * 由 tools/sprite_bounds.py 生成；运行时会优先用画布实测值，
  * 仅在实测不可用（如无头环境 / 跨域素材）时回退到这里。
@@ -137,6 +147,18 @@ class Animator {
     return !!seq && seq.length > 0;
   }
 
+  /**
+   * 某姿态某帧的实际停留时长（秒）。
+   * 有 holdMap 覆盖时用覆盖值，否则 1/fps；帧间插值窗口必须按这个值算，
+   * 否则被拉长的帧会让插值进度越过 1，出现「下一帧满不透明闪一下再消失」。
+   */
+  frameDur(name, idx) {
+    const fps = this.fps[name] || 0;
+    if (!(fps > 0)) return 0;
+    if (this.holdMap && this.holdMap[idx] != null) return this.holdMap[idx];
+    return 1 / fps;
+  }
+
   frameCount(name) {
     const seq = this.sprites[name];
     return seq ? seq.length : 0;
@@ -223,7 +245,7 @@ class Animator {
       this.nextIdx = null;
       this.frameTime += dt;
       // 逐帧停留：opts.hold 覆盖当前帧的停留时长（舔爪主帧要停久一点）
-      const durOf = (i) => (this.holdMap && this.holdMap[i] != null) ? this.holdMap[i] : dur;
+      const durOf = (i) => this.frameDur(this.current, i);
       // 单次播放：到最后一帧定格，不再循环（避免跳跃在空中反复蹲起）
       if (this.once && this.frameIndex >= seq.length - 1) {
         this.frameTime = 0;
@@ -269,23 +291,23 @@ class Animator {
       this._drawSeq(
         ctx, this.current, this.frameIndex, this.blend,
         x, y, scale, facing, mods,
-        this.frameTime, this.fps[this.current] || 0, useNext
+        this.frameTime, this.frameDur(this.current, this.frameIndex), useNext
       );
     }
   }
 
   /** 绘制一个姿态序列：当前帧 + 与下一帧的插值淡入（nextOverride 供眨眼循环指定后继帧） */
-  _drawSeq(ctx, name, idx, alpha, x, y, scale, facing, mods, frameTime, fps, nextOverride) {
+  _drawSeq(ctx, name, idx, alpha, x, y, scale, facing, mods, frameTime, curDur, nextOverride) {
     const seq = this.sprites[name];
     if (!seq || !seq.length || alpha <= 0) return;
 
     this._drawOne(ctx, seq[idx % seq.length], x, y, scale, facing, mods, alpha);
 
-    if (seq.length > 1 && fps > 0) {
-      const dur = 1 / fps;
-      const t = frameTime / dur;
+    // 帧间插值：curDur 是该帧的实际停留时长（含 hold 覆盖），窗口取其后 35%
+    if (seq.length > 1 && curDur > 0 && !NO_FRAME_BLEND.has(name)) {
+      const t = clamp01(frameTime / curDur);
       if (t > 1 - FRAME_BLEND) {
-        const k = Core.Ease.inOutQuad((t - (1 - FRAME_BLEND)) / FRAME_BLEND);
+        const k = clamp01(Core.Ease.inOutQuad((t - (1 - FRAME_BLEND)) / FRAME_BLEND));
         const nxt = (nextOverride != null && nextOverride >= 0) ? nextOverride : (idx + 1) % seq.length;
         this._drawOne(ctx, seq[nxt], x, y, scale, facing, mods, alpha * k);
       }

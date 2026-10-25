@@ -166,6 +166,10 @@
   const LICK_CD = 90;               // 空闲触发的硬冷却（秒）
   const LICK_PROB = 0.05;           // 每个决策点的命中概率
   const LICK_HOLD_MAP = { 1: 1 / LICK_FPS + LICK_HOLD };   // 帧索引 1 = lick_2
+  /* 收尾提前量：状态切换发生在 animator.update 之前，而帧推进恰好也在同一时刻
+   * 环回到 lick_1（抬爪）。若不提前结束，淡出期最后一帧会闪回「抬爪」，看着像残影。
+   * 取半帧（1/5 ÷ 2 = 0.1 s）——末轮 lick_4 少显示 100 ms 无感，但收爪姿态收得住。 */
+  const LICK_END_TRIM = 0.1;
 
   /* ================= 运行时状态 ================= */
 
@@ -195,7 +199,7 @@
     stretchTimer: 0,
     bathTimer: 0,
     foamTimer: 0,
-    lickTimer: 0,
+    lickEnd: 0,        // 舔爪结束时刻（animator.clock 域，非线性墙钟）
     lickRounds: 0,
     lastLickAt: -Infinity,
     pendingAfterStretch: null,
@@ -1189,14 +1193,16 @@
     /* 非交互动作：舔爪子（吃完 / 空闲随机触发，主帧停留略长） */
     lick: {
       enter() {
-        animator.play('lick', 0.18, { hold: LICK_HOLD_MAP });
+        animator.play('lick', 0.12, { hold: LICK_HOLD_MAP });
         const rounds = pet.lickRounds > 0 ? pet.lickRounds : 1;
         pet.lickRounds = 0;
-        pet.lickTimer = rounds * LICK_CYCLE;
+        // 结束时刻必须挂在「动画时钟」上：帧推进走的是 dt × animSpeed()，
+        // 用墙钟累加会在 animSpeed < 1（默认 85%）时提前掐断——
+        // 2 轮实际要 1.9/0.85 ≈ 2.24 s，而墙钟 1.9 s 就收摊，收爪帧(lick_4)永远播不到。
+        pet.lickEnd = animator.clock + rounds * LICK_CYCLE - LICK_END_TRIM;
       },
-      update(_c, dt) {
-        pet.lickTimer -= dt;
-        return pet.lickTimer <= 0 ? 'idle' : null;
+      update() {
+        return animator.clock >= pet.lickEnd ? 'idle' : null;
       },
     },
 

@@ -50,6 +50,15 @@ ok(/states\.lick|\n\s*lick:\s*\{/.test(src), 'lick 状态已注册');
 ok(/hold:\s*LICK_HOLD_MAP/.test(src), 'hold 映射已传入 play');
 ok(/LICK_HOLD_MAP\s*=\s*\{\s*1:/.test(src), 'LICK_HOLD_MAP 只作用于帧索引 1');
 
+// ---- 2b. 残影 / 截断修复落点（1.1.4） ----
+const anim = asar.extractFile(ASAR, path.join('engine', 'animator.js')).toString('utf8');
+ok(/NO_FRAME_BLEND\s*=\s*new Set\(\s*\['lick'\]\s*\)/.test(anim), 'animator: lick 排除帧间插值');
+ok(/frameDur\(name, idx\)/.test(anim) && /clamp01\(frameTime \/ curDur\)/.test(anim),
+  'animator: 插值窗口按实际停留时长计算并夹取');
+ok(/lickEnd\s*=\s*animator\.clock/.test(src) && !/lickTimer\s*-=/.test(src),
+  'renderer: 舔爪结束挂动画时钟（弃用墙钟）');
+ok(/LICK_END_TRIM/.test(src), `renderer: 收尾提前半帧（LICK_END_TRIM = ${grab(/const LICK_END_TRIM\s*=\s*([\d.]+)/)}）`);
+
 // ---- 3. 帧清单逐帧比对 ----
 const asarFrames = asar.listPackage(ASAR)
   .map((p) => p.replace(/\\/g, '/'))
