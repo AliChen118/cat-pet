@@ -152,15 +152,17 @@
   const SPRITE_FPS = {
     walk: 11, run: 13, tailwag: 7, unhappy: 2,
     idle: 5, eat: 6, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
-    bath: 6, lick: 6,
+    bath: 6, lick: 5,
   };
 
-  /* ---- 舔爪子节奏：6 fps 基础帧 + 主帧（lick_2 舔舐）额外停留 75 ms ---- */
-  const LICK_FPS = 6;
-  const LICK_HOLD = 0.075;
+  /* ---- 舔爪子节奏：5 fps 基础帧 + 主帧（lick_2 舔舐）额外停留 150 ms ----
+   * 舔毛是慢节奏动作，比 eat（6 fps）更慢；主帧停留接近基础帧的 1.75 倍，
+   * 让「舔」那一下有真正的停留感。单轮 ≈ 0.95 s。 */
+  const LICK_FPS = 5;
+  const LICK_HOLD = 0.15;
   const LICK_FRAME_COUNT = 4;
-  const LICK_CYCLE = LICK_FRAME_COUNT / LICK_FPS + LICK_HOLD;   // 单轮 ≈ 0.742 s
-  const LICK_ROUNDS_EAT = 2;        // 进食结束固定播 2 轮（≈ 1.48 s）
+  const LICK_CYCLE = LICK_FRAME_COUNT / LICK_FPS + LICK_HOLD;   // 单轮 ≈ 0.95 s
+  const LICK_ROUNDS_EAT = 2;        // 进食结束固定播 2 轮（≈ 1.90 s）
   const LICK_CD = 90;               // 空闲触发的硬冷却（秒）
   const LICK_PROB = 0.05;           // 每个决策点的命中概率
   const LICK_HOLD_MAP = { 1: 1 / LICK_FPS + LICK_HOLD };   // 帧索引 1 = lick_2

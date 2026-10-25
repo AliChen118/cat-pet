@@ -2043,15 +2043,16 @@ async function run() {
     const src = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
     ok(/lick:\s*\[/.test(src) && (src.match(/lick_\d\.png/g) || []).length === 4,
       '舔爪帧表: lick 注册 4 帧（lick_1..4）');
-    ok(/lick:\s*6/.test(src), '舔爪帧率: 6 fps（与 eat 同速，比 idle 的 5 略快）');
+    ok(/lick:\s*5/.test(src), '舔爪帧率: 5 fps（比 eat 的 6 更慢，舔毛是慢节奏动作）');
 
     const mFps = src.match(/const LICK_FPS\s*=\s*([\d.]+)/);
     const mHold = src.match(/const LICK_HOLD\s*=\s*([\d.]+)/);
     ok(!!mFps && !!mHold, '舔爪常量: LICK_FPS / LICK_HOLD 已声明');
     if (mFps && mHold) {
       const cycle = 4 / Number(mFps[1]) + Number(mHold[1]);
-      ok(Math.abs(cycle - 0.7417) < 0.002,
-        `舔爪节奏: 单轮 ${cycle.toFixed(4)} s（4/6 + 0.075 停留）；进食 2 轮 ≈ ${(cycle * 2).toFixed(2)} s`);
+      ok(Math.abs(cycle - 0.95) < 0.002,
+        `舔爪节奏: 单轮 ${cycle.toFixed(4)} s（4/${mFps[1]} + ${mHold[1]} 停留）；进食 2 轮 ≈ ${(cycle * 2).toFixed(2)} s`);
+      ok(Number(mFps[1]) < 6, `舔爪慢于进食: ${mFps[1]} fps < eat 的 6 fps`);
     }
 
     ok(/pet\.lickRounds\s*=\s*LICK_ROUNDS_EAT[\s\S]{0,160}return 'lick'/.test(src),
@@ -2059,7 +2060,7 @@ async function run() {
     ok(/time - pet\.lastLickAt > LICK_CD[\s\S]{0,160}Math\.random\(\) < LICK_PROB/.test(src),
       '空闲触发: 先过 90 s 冷却，再按 5% 概率命中');
     ok(/lick:\s*true/.test(src), '舔爪可打断: INTERRUPTIBLE 含 lick（危急需求能中断）');
-    ok(/\{ hold: LICK_HOLD_MAP \}/.test(src), '主帧停留: play 传入 hold 映射（lick_2 加 75 ms）');
+    ok(/\{ hold: LICK_HOLD_MAP \}/.test(src), `主帧停留: play 传入 hold 映射（lick_2 加 ${mHold ? Math.round(Number(mHold[1]) * 1000) : '?'} ms）`);
     ok(!/ACTIONS[^;]*'lick'/.test(fs.readFileSync(path.join(ROOT, 'engine', 'needs-profile.js'), 'utf8')),
       '权重表解耦: lick 不进 ACTIONS（不挤占走/跑/待机比例）');
 

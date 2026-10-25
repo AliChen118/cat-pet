@@ -1,0 +1,86 @@
+/* 校验打包产物内的 asar 内容：版本、舔爪节奏常量、帧清单逐帧 MD5。
+ * 用法：node tools/verify_asar.js <asar 路径> [磁盘 frames 目录]
+ * 默认：dist-113-r2/win-unpacked/resources/app.asar + app/assets/sprites/frames
+ * 只读校验，不启动应用，不影响正在运行的实例。
+ */
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const asar = require('../app/node_modules/@electron/asar');
+
+const ROOT = path.resolve(__dirname, '..');
+const ASAR = path.resolve(ROOT, process.argv[2] || 'dist-113-r2/win-unpacked/resources/app.asar');
+const DISK = path.resolve(ROOT, process.argv[3] || 'app/assets/sprites/frames');
+
+let fail = 0;
+const ok = (c, m) => { console.log(`[${c ? 'ok' : 'FAIL'}] ${m}`); if (!c) fail++; };
+const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
+
+if (!fs.existsSync(ASAR)) {
+  console.error(`[FAIL] 找不到 asar: ${ASAR}`);
+  process.exit(1);
+}
+console.log(`asar  : ${ASAR}  ${(fs.statSync(ASAR).size / 1048576).toFixed(1)} MB`);
+console.log(`磁盘帧: ${DISK}\n`);
+
+// ---- 1. 版本 ----
+const pkg = JSON.parse(asar.extractFile(ASAR, 'package.json').toString('utf8'));
+ok(/^\d+\.\d+\.\d+$/.test(pkg.version), `package.json version = ${pkg.version}`);
+ok(pkg.main === 'main.js', `main = ${pkg.main}`);
+
+// ---- 2. 舔爪节奏常量（本轮改动的全部落点） ----
+const src = asar.extractFile(ASAR, 'renderer.js').toString('utf8');
+const grab = (re) => { const m = src.match(re); return m ? m[1] : null; };
+const fps = grab(/lick:\s*(\d+)\s*,/);
+const lfps = grab(/const LICK_FPS\s*=\s*([\d.]+)/);
+const lhold = grab(/const LICK_HOLD\s*=\s*([\d.]+)/);
+const lrounds = grab(/const LICK_ROUNDS_EAT\s*=\s*(\d+)/);
+const lcd = grab(/const LICK_CD\s*=\s*(\d+)/);
+ok(fps === '5', `SPRITE_FPS.lick = ${fps}（应为 5）`);
+ok(lfps === '5', `LICK_FPS = ${lfps}（应为 5）`);
+ok(lhold === '0.15', `LICK_HOLD = ${lhold}（应为 0.15）`);
+ok(lrounds === '2', `LICK_ROUNDS_EAT = ${lrounds}（应为 2）`);
+ok(lcd === '90', `LICK_CD = ${lcd}（应为 90）`);
+if (lfps && lhold) {
+  const cycle = 4 / Number(lfps) + Number(lhold);
+  ok(Math.abs(cycle - 0.95) < 0.002, `单轮 ${cycle.toFixed(4)} s ≈ 0.95 s（4/${lfps} + ${lhold}）`);
+}
+ok(/lick:\s*\[/.test(src) && (src.match(/lick_\d\.png/g) || []).length === 4, 'lick 注册 4 帧');
+ok(/states\.lick|\n\s*lick:\s*\{/.test(src), 'lick 状态已注册');
+ok(/hold:\s*LICK_HOLD_MAP/.test(src), 'hold 映射已传入 play');
+ok(/LICK_HOLD_MAP\s*=\s*\{\s*1:/.test(src), 'LICK_HOLD_MAP 只作用于帧索引 1');
+
+// ---- 3. 帧清单逐帧比对 ----
+const asarFrames = asar.listPackage(ASAR)
+  .map((p) => p.replace(/\\/g, '/'))
+  .filter((p) => /^\/assets\/sprites\/frames\/[^/]+\.png$/.test(p))
+  .map((p) => p.split('/').pop())
+  .sort();
+const diskFrames = fs.readdirSync(DISK).filter((f) => f.endsWith('.png')).sort();
+
+ok(asarFrames.length === diskFrames.length,
+  `帧数量一致: asar ${asarFrames.length} / 磁盘 ${diskFrames.length}`);
+const miss = diskFrames.filter((f) => !asarFrames.includes(f));
+const extra = asarFrames.filter((f) => !diskFrames.includes(f));
+ok(miss.length === 0, `asar 无缺帧${miss.length ? ': ' + miss.join(',') : ''}`);
+ok(extra.length === 0, `asar 无多余帧${extra.length ? ': ' + extra.join(',') : ''}`);
+
+let same = 0; const diff = [];
+// 注意：Windows 下 @electron/asar 的 extractFile 只认 path.sep 分隔的路径，
+// 传正斜杠会报 "was not found in this archive"。
+const fr = (...p) => p.join(path.sep);
+for (const f of diskFrames) {
+  if (!asarFrames.includes(f)) continue;
+  const a = md5(asar.extractFile(ASAR, fr('assets', 'sprites', 'frames', f)));
+  const b = md5(fs.readFileSync(path.join(DISK, f)));
+  if (a === b) same++; else diff.push(f);
+}
+ok(diff.length === 0, `逐帧 MD5 一致: ${same}/${diskFrames.length}${diff.length ? '，不一致: ' + diff.join(',') : ''}`);
+
+const lickFrames = diskFrames.filter((f) => f.startsWith('lick_'));
+ok(lickFrames.length === 4 && lickFrames.every((f) => asarFrames.includes(f)),
+  `lick_1..4 均在包内（${lickFrames.join(',')}）`);
+
+console.log('');
+if (fail) { console.error(`[FAIL] ${fail} 项未通过`); process.exit(1); }
+console.log('[PASS] asar 校验全部通过');

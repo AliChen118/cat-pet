@@ -32,7 +32,7 @@
 | `tailwag` | 4 | 7 fps | 0.57s | 循环 | 摇尾巴（非交互自主动作） |
 | `unhappy` | 2 | 2 fps | 1.00s | 循环 | 不高兴（非交互自主动作） |
 | `bath` | 6 | 6 fps | 1.00s | 循环 | 坐盆 → 泡泡 → 抖身 → 冲净 → 甩尾 |
-| `lick` | 4 | 6 fps | **0.74s** | 循环 | 抬爪 → 舔爪背 → 擦脸 → 收爪；`lick_2` 主帧额外停留 75 ms（吃完必播 / 空闲随机） |
+| `lick` | 4 | 5 fps | **0.95s** | 循环 | 抬爪 → 舔爪背 → 擦脸 → 收爪；`lick_2` 主帧额外停留 150 ms（吃完必播 / 空闲随机） |
 | `drag` | 1 | — | — | 静态 | 被拎起（唯一无动画姿态） |
 
 **单次播放**：`jump` / `stretch` 用 `animator.play(name, fade, {once:true})` 播到末帧定格；`fall` 不是独立素材，而是复用 `jump` 帧并以 `{startAt:1}` 从腾空帧起播。
@@ -82,7 +82,7 @@ blinkCfg = { active:[0,3], blinkFrame:2, meanGap: 60/blinkRate }
 
 > 两个必须守住的不变量（都曾因重写 `update()` 而破功）：① 普通分支必须保留 `frameTime += dt`，否则非 idle 姿态的帧永不推进（表现为"所有动作都只剩第 1 帧"）；② 首次进入 idle 必须把 `blinkAt` 从 `Infinity` 排掉，否则永远不眨眼。
 
-**逐帧停留**（`play(name, fade, { hold: { 帧索引: 秒 } })`）：普通分支的推进时长由 `durOf(frameIndex)` 给出——命中 `hold` 用覆盖值，否则用 `1/fps`。目前只有 `lick` 用它把主帧 `lick_2`（索引 1）拉到 `1/6 + 0.075 = 0.242 s`，其余姿态 `holdMap` 为 `null`，行为与原来完全一致。眨眼分支仍用基础 `dur`，不受影响。
+**逐帧停留**（`play(name, fade, { hold: { 帧索引: 秒 } })`）：普通分支的推进时长由 `durOf(frameIndex)` 给出——命中 `hold` 用覆盖值，否则用 `1/fps`。目前只有 `lick` 用它把主帧 `lick_2`（索引 1）拉到 `1/5 + 0.15 = 0.35 s`，其余姿态 `holdMap` 为 `null`，行为与原来完全一致。眨眼分支仍用基础 `dur`，不受影响。
 
 ---
 
