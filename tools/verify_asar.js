@@ -68,6 +68,7 @@ ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(anim),
   'animator: tailwag 排除帧间插值（相邻帧 IoU 0.76–0.92）');
 const poseScale = grab(/const POSE_SCALE = \{([^}]*)\}/) || '';
 ok(!/tailwag/.test(poseScale), `renderer: POSE_SCALE 不再含 tailwag（{${poseScale.trim()}}）→ 运行期系数恒为 1`);
+ok(!/\bpet\b/.test(poseScale), 'renderer: POSE_SCALE 不再含 pet（抚摸比例已烘焙进素材，切回 idle 无尺寸过渡）');
 ok(/pet\.tailwagEnd = animator\.clock \+ Core\.rand/.test(src),
   'renderer: 摇尾巴计时挂动画时钟');
 ok(/animator\.clock < pet\.tailwagEnd/.test(src) && /atCycleStart\(\) \? 'idle'/.test(src),
@@ -126,6 +127,10 @@ ok(lickFrames.length === 4 && lickFrames.every((f) => asarFrames.includes(f)),
 const wagFrames = diskFrames.filter((f) => f.startsWith('tailwag_'));
 ok(wagFrames.length === 4 && wagFrames.every((f) => asarFrames.includes(f)),
   `tailwag_1..4 均在包内（${wagFrames.join(',')}）`);
+
+const petFrames = diskFrames.filter((f) => f.startsWith('pet_'));
+ok(petFrames.length === 3 && petFrames.every((f) => asarFrames.includes(f)),
+  `pet_1..3 均在包内且与磁盘同源（${petFrames.join(',')}）`);
 
 console.log('');
 if (fail) { console.error(`[FAIL] ${fail} 项未通过`); process.exit(1); }

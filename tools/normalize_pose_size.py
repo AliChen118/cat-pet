@@ -87,8 +87,23 @@ def torso_area(path, thr=100, e=8):
     return int(ndi.binary_erosion(m, np.ones((e, e), bool)).sum())
 
 
+def silhouette_area(path, thr=100):
+    """整幅 alpha 面积。判据是「整体体量」，对尾巴敏感——只用于无高举大尾巴/无肢体
+    大位移的姿态（如 pet），且必须配合 --uniform 使用，避免逐帧缩放导致帧间抖动。"""
+    return int((np.array(Image.open(path).convert('RGBA'))[:, :, 3] > thr).sum())
+
+
 def measure(path, metric):
-    return eye_gap(path) if metric == 'eye' else torso_area(path)
+    if metric == 'eye':
+        return eye_gap(path)
+    if metric == 'torso':
+        return torso_area(path)
+    return silhouette_area(path)
+
+
+def pose_frames(pose):
+    return sorted(f for f in os.listdir(FRAMES)
+                  if f.startswith(pose + '_') and f.endswith('.png'))
 
 
 def scale_about_anchor(im, k):
@@ -99,37 +114,60 @@ def scale_about_anchor(im, k):
     return out
 
 
+def ref_target(ref, metric):
+    """基准 = 单帧（idle_1）或整组均值（idle）。组均值可抹掉基准自身的帧间波动。"""
+    if os.path.exists(os.path.join(FRAMES, ref + '.png')):
+        p = os.path.join(FRAMES, ref + '.png')
+        v = measure(p, metric)
+        return (v, f'{ref}') if v else (None, ref)
+    frames = pose_frames(ref)
+    vals = [measure(os.path.join(FRAMES, f), metric) for f in frames]
+    vals = [v for v in vals if v]
+    if not vals:
+        return None, ref
+    return sum(vals) / len(vals), f'{ref} 组均值（{len(vals)} 帧）'
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('pose')
     ap.add_argument('--ref', default='idle_1')
-    ap.add_argument('--metric', choices=['eye', 'torso'], default='eye')
+    ap.add_argument('--metric', choices=['eye', 'torso', 'area'], default='eye')
+    ap.add_argument('--uniform', action='store_true',
+                    help='组内统一系数（取均值），避免逐帧缩放引入帧间尺寸抖动')
     ap.add_argument('--dry', action='store_true')
     args = ap.parse_args()
 
-    ref_path = os.path.join(FRAMES, args.ref + '.png')
-    target = measure(ref_path, args.metric)
+    target, ref_label = ref_target(args.ref, args.metric)
     if not target:
         raise SystemExit(f'基准 {args.ref} 在 {args.metric} 口径下测不到')
 
-    frames = sorted(f for f in os.listdir(FRAMES)
-                    if f.startswith(args.pose + '_') and f.endswith('.png'))
+    frames = pose_frames(args.pose)
     if not frames:
         raise SystemExit(f'找不到 {args.pose}_*.png')
 
-    print(f'基准 {args.ref}: {args.metric} = {target:.1f}')
+    print(f'基准 {ref_label}: {args.metric} = {target:.1f}')
+
+    # eye 是线性量（比值即系数）；torso/area 是面积量，需开方才能得到线性系数
+    def linear(v):
+        return target / v if args.metric == 'eye' else (target / v) ** 0.5
+
     plan = []
     for f in frames:
         p = os.path.join(FRAMES, f)
         v = measure(p, args.metric)
         if not v:
-            raise SystemExit(f'{f} 在 {args.metric} 口径下测不到，改用 --metric torso')
-        k = target / v
-        plan.append((f, v, k))
-        print(f'  {f:<14} {args.metric}={v:7.1f}  系数={k:.4f}')
+            raise SystemExit(f'{f} 在 {args.metric} 口径下测不到，换口径或改用 --metric torso')
+        plan.append((f, v, linear(v)))
+        print(f'  {f:<14} {args.metric}={v:9.1f}  系数={plan[-1][2]:.4f}')
 
     ks = [k for _, _, k in plan]
     print(f'  组内系数跨度 {min(ks):.4f}~{max(ks):.4f}（{(max(ks)/min(ks)-1)*100:.1f}%）')
+
+    if args.uniform:
+        ku = sum(ks) / len(ks)
+        plan = [(f, v, ku) for f, v, _ in plan]
+        print(f'  组内统一系数 {ku:.4f}（消除帧间尺寸抖动，允许单帧与基准有 ±{(max(ks)/min(ks)-1)*50:.1f}% 的差）')
 
     if args.dry:
         print('\n[dry] 未写入')
@@ -147,9 +185,9 @@ def main():
         p = os.path.join(FRAMES, f)
         v = measure(p, args.metric)
         vals.append(v)
-        print(f'  {f:<14} {args.metric}={v:7.1f}')
+        print(f'  {f:<14} {args.metric}={v:9.1f}  与基准差 {(v / target - 1) * 100:+.1f}%')
     print(f'  组内跨度 {min(vals):.1f}~{max(vals):.1f}（{(max(vals)/min(vals)-1)*100:.1f}%）')
-    print(f'  与基准差 {abs(sum(vals)/len(vals)/target - 1)*100:.1f}%')
+    print(f'  组均值与基准差 {(sum(vals)/len(vals)/target - 1)*100:+.1f}%')
     print(f'原始帧已备份到 {BACKUP}')
 
 
