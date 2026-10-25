@@ -1522,7 +1522,9 @@ async function run() {
     //     期间定期补满属性，避免饱食/精力跌破阈值后 decide() 一直走 sleep/hungry 分支
     applyLive({ behavior: { restiness: 0 } });
     const markWag = drawCalls.length;
-    for (let i = 0; i < 9000; i++) {
+    // 窗口 150 s → 230 s：走/跑现在至少播 2 轮（更长），同样时长内决策次数变少，
+    // 窗口太短会让「摇尾巴」偶发漏抽，断言随机翻红。
+    for (let i = 0; i < 14000; i++) {
       t.t += 16.667;
       step(t.t);
       if (i % 1500 === 0) {
@@ -1530,6 +1532,11 @@ async function run() {
       }
     }
     const wagFrames = [...names(markWag)].filter((s) => s.startsWith('tailwag_')).sort();
+    if (process.env.WR_DEBUG) {
+      const cnt = {};
+      names(markWag).forEach((n) => { const k = n.split('_')[0]; cnt[k] = (cnt[k] || 0) + 1; });
+      console.log('  [dbg] 150s 窗口姿态分布:', JSON.stringify(cnt));
+    }
     console.log(`[phase4] 「摇尾巴」渲染帧: ${wagFrames.join(', ') || '(无)'}`);
     ok(wagFrames.length >= 3,
       `新动作「摇尾巴」: 随机表触发并渲染多帧（实际 ${wagFrames.join(',') || '无'}）`);
@@ -2081,7 +2088,7 @@ async function run() {
 
     /* ---- 残影 / 截断回归 ---- */
     const animSrc = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
-    ok(/NO_FRAME_BLEND\s*=\s*new Set\(\s*\['lick'\]\s*\)/.test(animSrc),
+    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'lick'[^)]*\)/.test(animSrc),
       '舔爪不参与帧间插值: 相邻帧 IoU 0.86–0.95，叠加会出现双爪/双头残影');
     ok(/frameDur\(name, idx\)/.test(animSrc) && /clamp01\(frameTime \/ curDur\)/.test(animSrc),
       '插值窗口按帧实际停留时长计算并夹取到 [0,1]（hold 帧不再出现「满不透明闪一下再消失」）');
@@ -2136,6 +2143,108 @@ async function run() {
     ok(idleCount === 2, `其他姿态保留帧间插值: idle 在插值窗口内绘制 ${idleCount} 张（应为 2）`);
   } catch (e) {
     errors.push(`舔爪残影回归: ${e.message}`);
+  }
+
+  /* ---- 4p. 走/跑：最少 2 个完整循环、循环首帧收尾、无叠影 ---- */
+  try {
+    const animSrc2 = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
+    const rsrc = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+
+    const wFps = Number((rsrc.match(/walk:\s*(\d+)\s*,\s*run:/) || [])[1]);
+    const rFps = Number((rsrc.match(/run:\s*(\d+)\s*,/) || [])[1]);
+    ok(wFps > 0 && rFps > 0, `走/跑帧率: walk ${wFps} fps / run ${rFps} fps`);
+    const wCycle = 4 / wFps;
+    const rCycle = 4 / rFps;
+    ok(Math.abs(wCycle * 2 - 0.727) < 0.006,
+      `走: 单轮 ${wCycle.toFixed(4)} s，满 2 轮 ${(wCycle * 2).toFixed(3)} s（不太短）`);
+    ok(Math.abs(rCycle * 2 - 0.615) < 0.006,
+      `跑: 单轮 ${rCycle.toFixed(4)} s，满 2 轮 ${(rCycle * 2).toFixed(3)} s`);
+
+    ok(/const WALK_MIN_LOOPS = 2/.test(rsrc) && /const RUN_MIN_LOOPS = 2/.test(rsrc),
+      '最少循环数: 走/跑均要求 2 个完整循环');
+    ok(/lapsDone\(\) < WALK_MIN_LOOPS \|\| !animator\.atCycleStart\(\)/.test(rsrc),
+      '走: 未满 2 轮或不在循环首帧 → 不收势（不出现半截跨步）');
+    ok(/lapsDone\(\) < RUN_MIN_LOOPS \|\| !animator\.atCycleStart\(\)/.test(rsrc),
+      '跑: 同样门禁');
+    ok(/if \(nxt === 0\) this\.laps\+\+/.test(animSrc2)
+      && /atCycleStart\(\)\s*\{\s*return this\.frameIndex === 0;/.test(animSrc2),
+      'animator: 环回首帧时累计轮数（动画时间域，动效倍率不影响）');
+    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'walk'[^)]*'run'[^)]*\)/.test(animSrc2),
+      '走/跑不参与帧间插值: IoU 0.56–0.75，叠加会变四条腿');
+    ok(/pet\.walkSpeed = Math\.min\(WALK_SPEED, span \/ WALK_MIN_TIME\)/.test(rsrc),
+      '步速反算: 距离短则放慢，到达时正好满 2 轮，且不会走过头');
+    ok(/function runSpeedFor/.test(rsrc) && /RUN_SLOW_FLOOR/.test(rsrc),
+      '跑速下限 65%（短距离仍像「跑」）');
+    ok(/WALK_SKIP_DIST/.test(rsrc) && /pet\.walkSkip/.test(rsrc),
+      '贴脸目标（< 24 px）不播步态，直接进后续动作');
+
+    // Animator 轮数累计单测
+    const AC2 = vm.runInContext('Animator', sandbox);
+    const a3 = new AC2();
+    a3.sprites.walk = [1, 2, 3, 4].map((i) => ({ src: `walk_${i}.png` }));
+    a3.fps.walk = wFps;
+    a3.play('walk', 0.001);
+    const lapsSaw = [];
+    let boundaryOk = true;
+    for (let i = 0; i < 240; i++) {
+      a3.update(1 / 60);
+      if (lapsSaw[lapsSaw.length - 1] !== a3.lapsDone()) lapsSaw.push(a3.lapsDone());
+      if (a3.lapsDone() >= 2) { boundaryOk = a3.atCycleStart(); break; }
+    }
+    ok(lapsSaw.includes(1) && lapsSaw.includes(2),
+      `animator 轮数: 依次经过 ${lapsSaw.slice(0, 4).join('→')}`);
+    ok(boundaryOk, 'animator 轮数: 满 2 轮时正停在循环首帧（frameIndex=0）');
+
+    // 行为验证：40 s 自由漫游，逐帧记录 (姿态, 帧号, 已完成轮数)
+    const AC3 = vm.runInContext('Animator', sandbox);
+    const origDraw3 = AC3.prototype.draw;
+    const poseLog = [];
+    AC3.prototype.draw = function (ctx, o) {
+      poseLog.push({ name: this.current, idx: this.frameIndex, laps: this.laps });
+      return origDraw3.call(this, ctx, o);
+    };
+    applyLive({
+      behavior: { needVoice: false, restiness: 0, animSpeed: 100 },
+      needs: { decayHunger: 0, decayEnergy: 0, decayHappiness: 0, decayCleanliness: 0, decayAffinity: 0 },
+      runtime: { stats: { hunger: 70, energy: 95, happiness: 85, cleanliness: 85, affinity: 30, xp: 0 } },
+    });
+    frames(2400, tRef);
+    AC3.prototype.draw = origDraw3;
+
+    for (const pose of ['walk', 'run']) {
+      const eps = [];
+      let cur = null;
+      for (const p2 of poseLog) {
+        if (p2.name === pose) {
+          if (!cur) { cur = []; eps.push(cur); }
+          cur.push(p2);
+        } else cur = null;
+      }
+      const short = [];
+      const notBoundary = [];
+      const notSeq = [];
+      let minLaps = Infinity;
+      for (const e of eps) {
+        const last = e[e.length - 1];
+        minLaps = Math.min(minLaps, last.laps);
+        if (last.laps < 2) short.push(`${e.length}帧/${last.laps}轮`);
+        if (last.idx !== 0) notBoundary.push(`末帧${last.idx + 1}`);
+        // 同一帧会因为 rAF 快于帧率而重复绘制，允许「相等」，但绝不允许跳跃
+        for (let k = 1; k < e.length; k++) {
+          const a = e[k - 1].idx; const b = e[k].idx;
+          if (b !== a && b !== (a + 1) % 4) { notSeq.push(`${a + 1}→${b + 1}`); break; }
+        }
+      }
+      ok(eps.length > 0, `${pose}: 40 s 内触发 ${eps.length} 段（最短 ${minLaps} 轮）`);
+      ok(short.length === 0,
+        `${pose}: 每段至少 2 个完整循环${short.length ? '，不足的段 ' + short.slice(0, 3).join(' / ') : ''}`);
+      ok(notBoundary.length === 0,
+        `${pose}: 全部收在循环首帧（不出现半截跨步）${notBoundary.length ? '，例外 ' + notBoundary.slice(0, 3).join(' / ') : ''}`);
+      ok(notSeq.length === 0,
+        `${pose}: 帧序严格 1→2→3→4→1，无跳帧${notSeq.length ? '，异常 ' + notSeq.slice(0, 3).join(' / ') : ''}`);
+    }
+  } catch (e) {
+    errors.push(`走/跑循环: ${e.message}`);
   }
 
   /* ---------------- 断言 ---------------- */

@@ -171,6 +171,24 @@
    * 取半帧（1/5 ÷ 2 = 0.1 s）——末轮 lick_4 少显示 100 ms 无感，但收爪姿态收得住。 */
   const LICK_END_TRIM = 0.1;
 
+  /* ---- 走/跑：最少 2 个完整循环 + 只在循环首帧收尾 ----
+   * 走 4 帧 @11fps = 0.364 s/轮 → 2 轮 0.727 s；跑 4 帧 @13fps = 0.308 s/轮 → 2 轮 0.615 s。
+   * 轮数由 animator.laps 在「环回首帧」时累加，走的是动画时间（动效速度倍率不影响判定）。 */
+  const WALK_CYCLE = 4 / SPRITE_FPS.walk;
+  const RUN_CYCLE = 4 / SPRITE_FPS.run;
+  const WALK_MIN_LOOPS = 2;
+  const RUN_MIN_LOOPS = 2;
+  const WALK_MIN_TIME = WALK_CYCLE * WALK_MIN_LOOPS;    // 0.727 s
+  const RUN_MIN_TIME = RUN_CYCLE * RUN_MIN_LOOPS;       // 0.615 s
+  /* 自由漫游的最小目标距离 = 正常步速 × 最少时长。
+   * 低于它就把步速按「距离 / 时长」反算放慢，保证到达时正好走满 2 轮，且不会走过头。 */
+  const WALK_MIN_DIST = Math.ceil(WALK_SPEED * WALK_MIN_TIME);   // 70 px
+  const RUN_MIN_DIST = Math.ceil(RUN_SPEED * RUN_MIN_TIME);      // 145 px
+  /* 比这更近视为「已经在目标点」（喂食碗/光标落在脚边）：不播走动，直接进后续动作 */
+  const WALK_SKIP_DIST = 24;
+  const RUN_SKIP_DIST = 40;
+  const RUN_SLOW_FLOOR = 0.65;   // 跑速放慢下限，仍要像「跑」而不是「挪」
+
   /* ================= 运行时状态 ================= */
 
   const canvas = document.getElementById('stage');
@@ -192,6 +210,9 @@
     stats: { hunger: 80, energy: 80, happiness: 80 },
     targetX: null,
     afterWalk: null,
+    walkSpeed: WALK_SPEED,
+    runSpeed: RUN_SPEED,
+    walkSkip: false,
     eatTimer: 0,
     playTimer: 0,
     meowTimer: 0,
@@ -682,9 +703,28 @@
 
   /* ================= 工具 ================= */
 
-  function pickTarget() {
+  /**
+   * 随机漫游目标。minDist > 0 时只考虑空间足够的一侧，
+   * 保证「过去的路程」够走满最少循环数；两侧都不够则去更宽敞的那一头。
+   */
+  function pickTarget(minDist) {
     const [lo, hi] = bounds();
-    return Core.rand(lo, hi);
+    if (!(minDist > 0)) return Core.rand(lo, hi);
+    const roomL = pet.x - lo;
+    const roomR = hi - pet.x;
+    const canL = roomL > minDist;
+    const canR = roomR > minDist;
+    if (canL && canR) {
+      return Math.random() < 0.5 ? Core.rand(lo, pet.x - minDist) : Core.rand(pet.x + minDist, hi);
+    }
+    if (canL) return Core.rand(lo, pet.x - minDist);
+    if (canR) return Core.rand(pet.x + minDist, hi);
+    return roomL >= roomR ? lo : hi;
+  }
+
+  /** 冲刺速度：距离短就按「距离 / 最少时长」收着跑，下限 65%（仍要像「跑」而不是「挪」） */
+  function runSpeedFor(span) {
+    return clamp(span / RUN_MIN_TIME, RUN_SPEED * RUN_SLOW_FLOOR, RUN_SPEED);
   }
 
   /**
@@ -853,18 +893,34 @@
     walk: {
       enter() {
         animator.play('walk', 0.16);
-        if (pet.targetX == null) pet.targetX = pickTarget();
+        if (pet.targetX == null) pet.targetX = pickTarget(WALK_MIN_DIST);
+        // 步速 = 距离 / 最少时长，上限仍是正常步速：
+        // 路程够就正常走，路程短（碗/光标在脚边）就放慢，到达时正好满 2 轮，绝不走过头。
+        const span = Math.abs(pet.targetX - pet.x);
+        pet.walkSkip = span < WALK_SKIP_DIST;   // 贴脸距离：没有可看的步态，直接进后续动作
+        pet.walkSpeed = Math.min(WALK_SPEED, span / WALK_MIN_TIME);
       },
       update(_c, dt) {
+        if (pet.walkSkip) {
+          const next = pet.afterWalk || 'idle';
+          pet.targetX = null;
+          pet.afterWalk = null;
+          pet.walkSkip = false;
+          return next;
+        }
         const d = pet.targetX - pet.x;
         if (Math.abs(d) < 8) {
+          // 到位了还得满足：满 2 个完整循环，且停在循环首帧（不在跨步中间收势）
+          if (animator.lapsDone() < WALK_MIN_LOOPS || !animator.atCycleStart()) return null;
           const next = pet.afterWalk || 'idle';
           pet.targetX = null;
           pet.afterWalk = null;
           return next;
         }
         pet.facing = d > 0 ? 1 : -1;
-        pet.x += Math.sign(d) * WALK_SPEED * animSpeed() * dt;
+        // 单帧位移不超过剩余距离：精确落点，避免在目标两侧反复抖
+        const step = Math.min(Math.abs(d), pet.walkSpeed * animSpeed() * dt);
+        pet.x += Math.sign(d) * step;
         clampX();
         return null;
       },
@@ -873,6 +929,7 @@
         if (food && pet.afterWalk === 'eat') food = null;
         pet.targetX = null;
         pet.afterWalk = null;
+        pet.walkSkip = false;
       },
     },
 
@@ -880,18 +937,28 @@
       enter() {
         animator.play('run', 0.16);
         pet.runTimer = Core.rand(1.6, 3.0);
-        pet.targetX = pickTarget();
+        pet.targetX = pickTarget(RUN_MIN_DIST);
+        pet.runSpeed = runSpeedFor(Math.abs(pet.targetX - pet.x));
         pet.vx = 0;
       },
       update(_c, dt) {
         pet.runTimer -= dt;
-        if (pet.runTimer <= 0) return 'idle';
-        // 朝目标横向冲刺，不改变垂直状态
         const d = pet.targetX - pet.x;
+        if (Math.abs(d) < 10) {
+          // 到位但不满 2 轮（屏幕窄、目标被边界夹住）→ 换个远目标接着冲，不走走停停
+          if (animator.lapsDone() < RUN_MIN_LOOPS && pet.runTimer > 0) {
+            pet.targetX = pickTarget(RUN_MIN_DIST);
+            pet.runSpeed = runSpeedFor(Math.abs(pet.targetX - pet.x));
+            return null;
+          }
+          if (animator.lapsDone() < RUN_MIN_LOOPS || !animator.atCycleStart()) return null;
+          return 'idle';
+        }
+        if (pet.runTimer <= 0 && animator.lapsDone() >= RUN_MIN_LOOPS && animator.atCycleStart()) return 'idle';
         pet.facing = d > 0 ? 1 : -1;
-        pet.x += pet.facing * RUN_SPEED * animSpeed() * dt;
+        const step = Math.min(Math.abs(d), pet.runSpeed * animSpeed() * dt);
+        pet.x += Math.sign(d) * step;
         clampX();
-        if (Math.abs(pet.targetX - pet.x) < 10) return 'idle';
         return null;
       },
       exit() { pet.targetX = null; },

@@ -20,11 +20,11 @@ const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 
 /**
  * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大
- * （实测 alpha 掩膜 IoU：lick 0.86–0.95，idle 0.97–1.00）。
+ * （实测 alpha 掩膜 IoU：lick 0.86–0.95、walk 0.59–0.75、run 0.56–0.68，而 idle 0.97–1.00）。
  * 插值实现是「当前帧实心 + 下一帧按 k 叠上去」，差异大的姿态会产生
- * 两个轮廓同时可见的残影（双爪 / 双头），因此这类姿态直接硬切。
+ * 两个轮廓同时可见的残影（双爪 / 双头 / 四条腿），因此这类姿态直接硬切。
  */
-const NO_FRAME_BLEND = new Set(['lick']);
+const NO_FRAME_BLEND = new Set(['lick', 'walk', 'run']);
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -89,6 +89,7 @@ class Animator {
     this.frameTime = 0;
     this.once = false;
     this.holdMap = null;    // 逐帧停留覆盖：{ 帧索引: 时长秒 }，null = 全部用 1/fps
+    this.laps = 0;          // 本次 play 内已完成的完整循环数（走/跑的最少轮数门禁靠它）
 
     /* ---- 待机眨眼控制（仅 idle 姿态生效） ----
      * blinkCfg 由渲染进程按设置写入；null = 保持旧的整序列循环。
@@ -182,6 +183,25 @@ class Animator {
     this.holdMap = opts.hold || null;
     this.frameIndex = opts.startAt ? opts.startAt | 0 : 0;
     this.frameTime = 0;
+    this.laps = 0;
+  }
+
+  /** 本次 play 内已播完的完整循环数 */
+  lapsDone() {
+    return this.laps;
+  }
+
+  /** 是否停在循环首帧（走/跑只允许在这里切换状态，收势才自然） */
+  atCycleStart() {
+    return this.frameIndex === 0;
+  }
+
+  /** 某姿态单轮时长（秒，动画时间）；无该姿态或帧率异常时返回 0 */
+  cycleSec(name) {
+    const seq = this.sprites[name];
+    const fps = this.fps[name] || 0;
+    if (!seq || !seq.length || !(fps > 0)) return 0;
+    return seq.length / fps;
   }
 
   update(dt) {
@@ -255,7 +275,9 @@ class Animator {
       let guard = 0;
       while (this.frameTime >= durOf(this.frameIndex) && guard++ < 16) {
         this.frameTime -= durOf(this.frameIndex);
-        this.frameIndex = (this.frameIndex + 1) % seq.length;
+        const nxt = (this.frameIndex + 1) % seq.length;
+        if (nxt === 0) this.laps++;          // 环回 = 播完一整轮
+        this.frameIndex = nxt;
         if (this.once && this.frameIndex >= seq.length - 1) { this.frameTime = 0; break; }
       }
     }

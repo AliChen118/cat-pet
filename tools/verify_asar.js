@@ -52,7 +52,11 @@ ok(/LICK_HOLD_MAP\s*=\s*\{\s*1:/.test(src), 'LICK_HOLD_MAP 只作用于帧索引
 
 // ---- 2b. 残影 / 截断修复落点（1.1.4） ----
 const anim = asar.extractFile(ASAR, path.join('engine', 'animator.js')).toString('utf8');
-ok(/NO_FRAME_BLEND\s*=\s*new Set\(\s*\['lick'\]\s*\)/.test(anim), 'animator: lick 排除帧间插值');
+ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'lick'[^)]*\)/.test(anim), 'animator: lick 排除帧间插值');
+ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'walk'[^)]*\)/.test(anim) && /'run'[^)]*\)/.test(anim),
+  'animator: 走/跑同样排除帧间插值（相邻帧 IoU 0.56–0.75）');
+ok(/lapsDone\(\)\s*<\s*WALK_MIN_LOOPS/.test(src) && /atCycleStart\(\)/.test(src),
+  'renderer: 走/跑满 2 轮且只在循环首帧收尾');
 ok(/frameDur\(name, idx\)/.test(anim) && /clamp01\(frameTime \/ curDur\)/.test(anim),
   'animator: 插值窗口按实际停留时长计算并夹取');
 ok(/lickEnd\s*=\s*animator\.clock/.test(src) && !/lickTimer\s*-=/.test(src),
