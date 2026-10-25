@@ -43,11 +43,16 @@
   const BUBBLE_TAIL = 6;           // 尖角伸出高度（与 index.html 中 ::after 的 bottom 一致）
   const HEAD_SMOOTH = 0.0004;      // 头顶高度的指数平滑系数（抑制帧序列带来的抖动）
 
-  /* ---- 活跃度 → 决策间隔与行为概率 ---- */
+  /* ---- 活跃度 → 决策间隔与行为概率 ----
+   * idle 是「主状态」：三档里 idle 的权重都排第一（low 0.55 / normal 0.42 / high 0.30），
+   * 走跑只作点缀——low 几乎不动、normal 偶发、high 才有明显跑动。
+   * 每档权重和恒为 1.00，与 needs-profile 的档位乘子相乘后再归一到 1；
+   * 末尾 meow 吃掉余量，保证加权随机永远不会掉进空档。
+   */
   const ACTIVITY = {
-    low:    { think: [4.5, 9.0], walk: 0.28, idle: 0.39, run: 0.07, jump: 0.06, stretch: 0.07, meow: 0.05, tailwag: 0.08 },
-    normal: { think: [2.2, 5.5], walk: 0.36, idle: 0.16, run: 0.16, jump: 0.08, stretch: 0.08, meow: 0.06, tailwag: 0.10 },
-    high:   { think: [1.2, 3.2], walk: 0.34, idle: 0.05, run: 0.24, jump: 0.12, stretch: 0.07, meow: 0.08, tailwag: 0.10 },
+    low:    { think: [4.5, 9.0], idle: 0.55, walk: 0.22, run: 0.05, jump: 0.05, stretch: 0.06, meow: 0.03, tailwag: 0.04 },
+    normal: { think: [2.2, 5.5], idle: 0.42, walk: 0.24, run: 0.11, jump: 0.08, stretch: 0.07, meow: 0.03, tailwag: 0.05 },
+    high:   { think: [1.2, 3.2], idle: 0.30, walk: 0.26, run: 0.16, jump: 0.11, stretch: 0.07, meow: 0.03, tailwag: 0.07 },
   };
 
   /* ---- 属性驱动的限流与中断参数（详见 docs/03-behavior.md §九） ---- */
@@ -223,6 +228,7 @@
     lickEnd: 0,        // 舔爪结束时刻（animator.clock 域，非线性墙钟）
     lickRounds: 0,
     lastLickAt: -Infinity,
+    tailwagEnd: 0,     // 摇尾巴结束时刻（同上，挂在动画时钟上）
     pendingAfterStretch: null,
   };
 
@@ -232,17 +238,21 @@
   let food = null;            // { x } 地面上的食碗
 
   /**
-   * 姿态级显示缩放表：素材逐姿态生成，猫的体格存在比例漂移
-   * （实测 unhappy/tailwag 头宽 ≈ idle 的 1.27 倍、bath ≈ 1.2 倍，pet ≈ 0.82 倍），
+   * 姿态级显示缩放表：素材逐姿态生成，猫的体格存在比例漂移，
    * 切姿态时会看到猫「突然变大/变小」。这里按 idle 基准逐姿态校正，
    * 锚点仍为素材 (256,470)（脚底贴地、躯干居中），不影响站位与阴影。
+   *
+   * 这是「兜底」手段：离散查表 + 帧级平滑，切姿态时仍有一次约 0.35s 的过渡。
+   * 更彻底的做法是把比例烘焙进素材（tools/normalize_pose_size.py 按眼距口径归一），
+   * 运行时系数恒为 1，进出该姿态完全没有尺寸过渡——tailwag 已按此改造，
+   * 见 docs/02-animation.md「姿态尺寸一致性」。
    */
-  const POSE_SCALE = { pet: 1.08, unhappy: 0.84, tailwag: 0.85, bath: 0.87 };
+  const POSE_SCALE = { pet: 1.08, unhappy: 0.84, bath: 0.87 };
   function poseScale() { return POSE_SCALE[fsm.name] || 1; }
 
   /* ---- 显示缩放的帧级平滑 ----
    * 姿态校正表是「按姿态名查表」的离散值，切姿态的那一帧会整块生效（pet +8%、
-   * unhappy −16%、tailwag −15%、bath −13%），而帧序列只做图像交叉淡化、不插值缩放，
+   * unhappy −16%、bath −13%），而帧序列只做图像交叉淡化、不插值缩放，
    * 于是出现「一瞬间体型突变」。体型（设置/滚轮）同理：直接赋值也是瞬跳。
    * 这里把「姿态校正 poseCur」「体型 sizeCur」各做一次指数平滑（≈0.12s 时间常数），
    * 所有绘制与几何（精灵、阴影、食碗、气泡头顶、特效锚点）统一读平滑值，
@@ -1237,11 +1247,14 @@
     tailwag: {
       enter() {
         animator.play('tailwag', 0.18);
-        pet.tailwagTimer = Core.rand(2.2, 3.6);
+        // 计时挂「动画时钟」而非墙钟：动作速度 < 100% 时墙钟会把轮次提前掐断
+        pet.tailwagEnd = animator.clock + Core.rand(2.2, 3.6);
       },
-      update(_c, dt) {
-        pet.tailwagTimer -= dt;
-        return pet.tailwagTimer <= 0 ? 'idle' : null;
+      update() {
+        // 双条件退出：时间到 + 停在循环首帧。硬切序列若在任意帧中断，
+        // 会看到尾巴甩到一半突然定格再淡出；落在接缝上则与 idle 首帧衔接自然。
+        if (animator.clock < pet.tailwagEnd) return null;
+        return animator.atCycleStart() ? 'idle' : null;
       },
     },
 

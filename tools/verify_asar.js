@@ -63,6 +63,35 @@ ok(/lickEnd\s*=\s*animator\.clock/.test(src) && !/lickTimer\s*-=/.test(src),
   'renderer: 舔爪结束挂动画时钟（弃用墙钟）');
 ok(/LICK_END_TRIM/.test(src), `renderer: 收尾提前半帧（LICK_END_TRIM = ${grab(/const LICK_END_TRIM\s*=\s*([\d.]+)/)}）`);
 
+// ---- 2c. 摇尾巴残影 / 体型 / 状态分布（1.1.6） ----
+ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(anim),
+  'animator: tailwag 排除帧间插值（相邻帧 IoU 0.76–0.92）');
+const poseScale = grab(/const POSE_SCALE = \{([^}]*)\}/) || '';
+ok(!/tailwag/.test(poseScale), `renderer: POSE_SCALE 不再含 tailwag（{${poseScale.trim()}}）→ 运行期系数恒为 1`);
+ok(/pet\.tailwagEnd = animator\.clock \+ Core\.rand/.test(src),
+  'renderer: 摇尾巴计时挂动画时钟');
+ok(/animator\.clock < pet\.tailwagEnd/.test(src) && /atCycleStart\(\) \? 'idle'/.test(src),
+  'renderer: 摇尾巴「时间到 + 循环首帧」双条件退出');
+const tiers = {};
+for (const tier of ['low', 'normal', 'high']) {
+  const m = src.match(new RegExp('\\b' + tier + ':\\s*\\{([^}]*think[^}]*)\\}'));
+  if (!m) continue;
+  const o = {};
+  const re = /(\w+):\s*([0-9.]+)/g;
+  let g;
+  while ((g = re.exec(m[1]))) o[g[1]] = Number(g[2]);
+  tiers[tier] = o;
+}
+ok(Object.keys(tiers).length === 3, `ACTIVITY 三档齐全: ${Object.keys(tiers).join('/')}`);
+for (const tier of Object.keys(tiers)) {
+  const o = tiers[tier];
+  const keys = Object.keys(o).filter((k) => k !== 'think');
+  const sum = keys.reduce((s, k) => s + o[k], 0);
+  const top = keys.slice().sort((x, y) => o[y] - o[x])[0];
+  ok(top === 'idle' && Math.abs(sum - 1) < 1e-9,
+    `ACTIVITY.${tier}: idle=${o.idle} 为第一权重（walk ${o.walk} / run ${o.run}），权重和 ${sum.toFixed(2)}`);
+}
+
 // ---- 3. 帧清单逐帧比对 ----
 const asarFrames = asar.listPackage(ASAR)
   .map((p) => p.replace(/\\/g, '/'))
@@ -93,6 +122,10 @@ ok(diff.length === 0, `逐帧 MD5 一致: ${same}/${diskFrames.length}${diff.len
 const lickFrames = diskFrames.filter((f) => f.startsWith('lick_'));
 ok(lickFrames.length === 4 && lickFrames.every((f) => asarFrames.includes(f)),
   `lick_1..4 均在包内（${lickFrames.join(',')}）`);
+
+const wagFrames = diskFrames.filter((f) => f.startsWith('tailwag_'));
+ok(wagFrames.length === 4 && wagFrames.every((f) => asarFrames.includes(f)),
+  `tailwag_1..4 均在包内（${wagFrames.join(',')}）`);
 
 console.log('');
 if (fail) { console.error(`[FAIL] ${fail} 项未通过`); process.exit(1); }

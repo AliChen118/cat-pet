@@ -2247,6 +2247,113 @@ async function run() {
     errors.push(`走/跑循环: ${e.message}`);
   }
 
+  /* ---- 4q. 摇尾巴：硬切、尺度烘焙进素材、退出落在循环接缝 ---- */
+  try {
+    const animSrc3 = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
+    const rsrc3 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+
+    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(animSrc3),
+      '摇尾巴不参与帧间插值: 相邻帧 IoU 0.76–0.92，叠加会出现两条尾巴');
+
+    // 比例已烘焙进素材（tools/normalize_pose_size.py 眼距口径 k≈0.93），运行时系数必须恒为 1
+    const psrc = (rsrc3.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1];
+    ok(psrc != null && !/tailwag/.test(psrc),
+      `摇尾巴不再走运行时姿态缩放: POSE_SCALE = {${(psrc || '').trim()}}（切进/切出体型零过渡）`);
+
+    ok(/pet\.tailwagEnd = animator\.clock \+ Core\.rand/.test(rsrc3),
+      '摇尾巴计时挂在动画时钟上（动作速度 <100% 时不会被墙钟提前掐断）');
+    ok(/animator\.clock < pet\.tailwagEnd/.test(rsrc3) && /atCycleStart\(\) \? 'idle'/.test(rsrc3),
+      '摇尾巴退出双条件: 时间到 + 停在循环首帧（不出现甩到一半的定格）');
+
+    // 单帧只绘一张（硬切）；对照姿态仍走插值，避免误伤
+    const AnimCtor3 = vm.runInContext('Animator', sandbox);
+    const g3 = makeCtx();
+    const a4 = new AnimCtor3();
+    a4.sprites.tailwag = [1, 2, 3, 4].map((i) => ({ src: `tailwag_${i}.png`, width: 512, height: 512 }));
+    a4.tops.tailwag = [85, 100, 100, 70];
+    a4.fps.tailwag = 7;
+    a4.current = 'tailwag';
+    a4.blend = 1;
+    a4.prev = null;
+    a4.holdMap = null;
+    const drawAt3 = (idx, ft) => {
+      a4.frameIndex = idx;
+      a4.frameTime = ft;
+      const m0 = drawCalls.length;
+      a4.draw(g3, { x: 320, y: 640, scale: 1, facing: 1, mods: {} });
+      return drawCalls.length - m0;
+    };
+    const c3 = [0, 0.04, 0.10, 0.14].map((ft) => drawAt3(0, ft));
+    ok(c3.every((c) => c === 1),
+      `摇尾巴单帧无叠加: 143 ms 停留内逐点绘制 ${c3.join('/')} 张（应全为 1）`);
+
+    // 行为回放：每段摇尾巴都必须收在循环首帧、至少 2 轮
+    const AC4 = vm.runInContext('Animator', sandbox);
+    const origDraw4 = AC4.prototype.draw;
+    const wagLog = [];
+    AC4.prototype.draw = function (ctx2, o) {
+      wagLog.push({ name: this.current, idx: this.frameIndex, clock: this.clock });
+      return origDraw4.call(this, ctx2, o);
+    };
+    applyLive({
+      behavior: { needVoice: false, restiness: 0, animSpeed: 100 },
+      needs: { decayHunger: 0, decayEnergy: 0, decayHappiness: 0, decayCleanliness: 0, decayAffinity: 0 },
+      runtime: { stats: { hunger: 70, energy: 95, happiness: 85, cleanliness: 95, affinity: 30, xp: 0 } },
+    });
+    frames(3000, tRef);
+    AC4.prototype.draw = origDraw4;
+
+    const segs = [];
+    let curSeg = null;
+    for (const p2 of wagLog) {
+      if (p2.name === 'tailwag') {
+        if (!curSeg) { curSeg = []; segs.push(curSeg); }
+        curSeg.push(p2);
+      } else curSeg = null;
+    }
+    const notSeam = segs.filter((s2) => s2[s2.length - 1].idx !== 0).length;
+    const wagCycles = segs.map((s2) => (s2[s2.length - 1].clock - s2[0].clock) / (4 / 7));
+    ok(segs.length > 0, `摇尾巴: 50 s 内触发 ${segs.length} 段`);
+    ok(notSeam === 0,
+      `摇尾巴: 全部收在循环首帧（尾部姿态一致）${notSeam ? '，例外 ' + notSeam + ' 段' : ''}`);
+    ok(wagCycles.length > 0 && Math.min(...wagCycles) >= 2,
+      `摇尾巴: 每段至少 2 个循环（最少 ${wagCycles.length ? Math.min(...wagCycles).toFixed(1) : 0} 轮）`);
+  } catch (e) {
+    errors.push(`摇尾巴: ${e.message}`);
+  }
+
+  /* ---- 4r. 状态分布：idle 为主，走/跑降频，三档和仍为 1 ---- */
+  try {
+    const rsrc4 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+    const tiers = {};
+    for (const tier of ['low', 'normal', 'high']) {
+      const m = rsrc4.match(new RegExp('\\b' + tier + ':\\s*\\{([^}]*think[^}]*)\\}'));
+      if (!m) continue;
+      const o = {};
+      const re = /(\w+):\s*([0-9.]+)/g;
+      let g;
+      while ((g = re.exec(m[1]))) o[g[1]] = Number(g[2]);
+      tiers[tier] = o;
+    }
+    ok(Object.keys(tiers).length === 3, `权重表: 解析出 ${Object.keys(tiers).join('/')} 三档`);
+    for (const tier of ['low', 'normal', 'high']) {
+      const o = tiers[tier] || {};
+      const keys = Object.keys(o).filter((k) => k !== 'think');
+      const sum = keys.reduce((s, k) => s + o[k], 0);
+      const sorted = keys.slice().sort((x, y) => o[y] - o[x]);
+      ok(sorted[0] === 'idle',
+        `${tier}: idle 是第一权重 ${o.idle}（次高 ${sorted[1]} ${o[sorted[1]]}）`);
+      ok(Math.abs(sum - 1) < 1e-9, `${tier}: 权重和 ${sum.toFixed(2)}（应为 1.00）`);
+    }
+    const n = tiers.normal || {};
+    ok(n.idle >= 0.40 && n.walk <= 0.25 && n.run <= 0.12,
+      `normal: 走/跑降频（walk ${n.walk} ≤ 0.25、run ${n.run} ≤ 0.12），idle ${n.idle} ≥ 0.40`);
+    ok((n.walk + n.run) <= 0.36,
+      `normal: 走+跑合计 ${(n.walk + n.run).toFixed(2)}（旧表 0.52，降幅明显）`);
+  } catch (e) {
+    errors.push(`状态分布: ${e.message}`);
+  }
+
   /* ---------------- 断言 ---------------- */
 
   const EXPECTED = ['drag',

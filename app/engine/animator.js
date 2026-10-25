@@ -20,11 +20,12 @@ const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 
 /**
  * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大
- * （实测 alpha 掩膜 IoU：lick 0.86–0.95、walk 0.59–0.75、run 0.56–0.68，而 idle 0.97–1.00）。
+ * （实测 alpha 掩膜 IoU：lick 0.86–0.95、walk 0.59–0.75、run 0.56–0.68、
+ *  tailwag 0.76–0.92，而 idle 0.97–1.00）。
  * 插值实现是「当前帧实心 + 下一帧按 k 叠上去」，差异大的姿态会产生
- * 两个轮廓同时可见的残影（双爪 / 双头 / 四条腿），因此这类姿态直接硬切。
+ * 两个轮廓同时可见的残影（双爪 / 双头 / 两条尾巴 / 四条腿），因此这类姿态直接硬切。
  */
-const NO_FRAME_BLEND = new Set(['lick', 'walk', 'run']);
+const NO_FRAME_BLEND = new Set(['lick', 'walk', 'run', 'tailwag']);
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
