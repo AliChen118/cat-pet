@@ -2,7 +2,7 @@
 
 > 状态：**已实现（2026-10-25）** —— 4 项决策已拍板并落地，回归全绿
 > 基线：当前工作区 `E:\AIWork\桌面宠物`，v1.0.0，原始 47 张序列帧 + 1 张 drag，14 个姿态 → 现 **51 帧 + drag，15 个姿态**
-> 分镜图：`design/storyboard-lick-paw.png`　节奏动图：`design/preview-lick-paw.gif`
+> 分镜图：`design/preview/storyboard-lick-paw.png`　节奏动图：`design/preview/preview-lick-paw.gif`（同目录 `preview-lick-paw-strip.png` 是横向帧条带，便于逐帧看姿态）
 
 **拍板结果**：① F1 头未低下去，接受；② 6 fps，`lick_2` 加 75 ms 停留；③ 进食后 2 轮；④ 空闲 90–130 s 一次。
 
@@ -28,7 +28,7 @@
 | `lick_3` | 擦脸 | 409 ms | 舌头收回，沾湿的爪子贴到右侧脸颊靠近眼睛处；头向爪侧倾、眼睛闭成弧线 |
 | `lick_4` | 收势 | 575 ms | 爪落回地面，回到接近 `idle_1` 的坐姿；尾巴轻摆 |
 
-> 已拍板：`lick_2` 停留 167 + 75 = 242 ms。节拍标注见分镜图与 `design/preview-lick-paw.gif`。
+> 已拍板：`lick_2` 停留 167 + 75 = 242 ms。节拍标注见分镜图与 `design/preview/preview-lick-paw.gif`。
 
 ---
 

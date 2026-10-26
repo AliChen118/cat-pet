@@ -88,6 +88,8 @@
 
 改造后 `POSE_SCALE = { pet: 1.08, unhappy: 0.84, bath: 0.87 }`，`tailwag` 运行期系数恒为 1，进出该状态**没有任何尺寸过渡**。工具：`tools/sprites/normalize_pose_size.py <pose> --ref idle_1 [--metric eye|torso] [--dry]`。
 
+**验收图**：`design/checks/tailwag-size-1.1.6.png`（同画布白底合成，基线对齐后对比 idle 与 tailwag 的体形）。
+
 > 遗留：`pet / unhappy / bath` 仍在 `POSE_SCALE` 里（闭眼/侧脸帧测不到眼距）。按眼距可测帧估算，理论系数应为 `pet≈1.05`、`unhappy≈0.90`、`bath≈0.94`，比现值均偏保守 4–6%。若要彻底消除这三处的过渡，可用同一支工具烘焙。
 
 ### ③ 状态分布：idle 转正
@@ -126,6 +128,8 @@
 3. 工具升级：`--metric area`（整幅面积，`--uniform` 配套）、`--ref idle`（无编号时取该姿态全帧均值，抹掉基准自身的帧间波动）。
 
 **回归**：新增 4s 段 4 条断言（`POSE_SCALE` 不含 pet / 抚摸段体形系数恒为 1 / 切回 idle 衔接处差 0 / idle 段恒为 1）；`verify_asar` 增 2 条；新增真机 `tools/probe/probe_pet.js`（4 次抚摸，校验段内系数恒 1、切回衔接差 0、帧序推进）。全量 **440 项通过**，连跑 4 次稳定。
+
+**验收图**：`design/checks/pet-size-before.png`（烘焙前，抚摸明显小一圈）与 `design/checks/pet-size-after-1.1.7.png`（烘焙后与 idle 同档）。
 
 **顺带修测试稳定性**：1.1.6 把 idle 权重调高后，4p（走/跑）与 4q（摇尾巴）的随机抽样次数变少，出现偶发翻红——其中"31 帧/1 轮"的异常段其实是**紧急需求打断**（`walk` 在 `INTERRUPTIBLE` 里），不是缺陷。现改为：只对"正常退出（下一步回 idle）"的段做「≥2 轮 + 收在循环首帧」强断言；摇尾巴随机未命中降级为 `[warn]`（触发覆盖由 phase4 的 230 s 窗口兜底），采样窗口 2400→3600 帧、3000→6000 帧，`activityLevel` 提到 `high`。
 

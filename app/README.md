@@ -48,7 +48,9 @@ npm run dist:portable  # 只产出便携版
 | 正在安装 | 进度条（`compression: maximum` 下先解压后落盘，进度条会先停在一段再快速推进） |
 | 完成 | 可勾选「运行 CatDesktopPet」，完成后直接启动 |
 
-两点行为说明：
+四页实机截图在 `../design/checks/installer-wizard-1.1.9/`：`01-install-mode.png`（安装选项）、`02-directory-custom.png`（自定义目录，含所需/可用空间）、`03-progress.png`（进度）、`04-finish.png`（完成页）、`05-run-from-custom-dir.png`（从自定义目录启动后的画面）。
+
+三点行为说明：
 
 - 在「选定安装位置」里选的目录，安装时会自动补一层 `CatDesktopPet` 子目录（electron-builder `instFilesPre` 行为，避免文件散落到用户自选目录根部）。
 - 静默安装：`CatDesktopPet-Setup-1.1.9.exe /S /D=<路径>`（`/D=` 不带引号且必须是最后一个参数）。
