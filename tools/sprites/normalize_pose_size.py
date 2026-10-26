@@ -5,18 +5,23 @@
 一帧整块生效，配合帧级平滑（SCALE_SMOOTH）就会看到一次「短暂缩一圈再涨回来」。
 比例烘焙进素材后运行时系数恒为 1，体型从头到尾不动。
 
-判据（两种口径）：
+判据（三种口径）：
   eye   （默认）眼距——两眼中点的水平距。眼睛是刚性特征，不受尾巴/姿态干扰，
         公认最能代表「同一只猫画多大」。缺点：闭眼/侧脸帧测不到。
-  torso 躯干带腐蚀核心面积——通用于任何姿态，但尾巴若横进带内会污染读数。
-        仅在 eye 全帧不可用时兜底。
+  torso 躯干带腐蚀核心面积——通用于任何姿态，但尾巴若横进带内会污染读数，
+        且体宽超过测量带（132 px）时会**饱和**，读数直接失去意义。
+        仅在 eye 全帧不可用时兜底，且必须确认没有饱和。
+  height 底边锚定的整体高度（y_max − y_min + 1），线性量。站在地面上的角色，
+        可视高度最接近人眼判断「这只猫有多大」；耷拉耳/绕身尾巴只改宽度不改高度，
+        因此不受污染，也不会饱和。前提：各帧底边一致（本项目统一 468）。
 
 锚点：素材基线 (256, 470)（对应 animator 的 SPRITE_CENTER / SPRITE_GROUND）保持
 不动，脚底不上浮、躯干不左右偏。
 
 用法：
-  python tools/sprites/normalize_pose_size.py tailwag --ref idle_1 [--dry]
-  python tools/sprites/normalize_pose_size.py tailwag --ref idle_1 --metric torso
+  python tools/sprites/normalize_pose_size.py tailwag --ref idle --metric eye --uniform
+  python tools/sprites/normalize_pose_size.py unhappy --ref idle --metric height --uniform
+  python tools/sprites/normalize_pose_size.py pet --ref idle --metric area --uniform [--dry]
 """
 import argparse
 import os
@@ -97,11 +102,25 @@ def silhouette_area(path, thr=100):
     return int((np.array(Image.open(path).convert('RGBA'))[:, :, 3] > thr).sum())
 
 
+def bbox_height(path, thr=100):
+    """底边锚定的整体高度（y_max - y_min + 1），线性量。
+
+    站在地面上的角色，「可视高度」最接近人眼判断「这只猫有多大」。对耷拉耳、绕身
+    尾巴不敏感——它们改的是宽度，不改高度；也因此不会出现躯干带那样的饱和。
+    前提是各帧底边一致（本项目统一 468），跨帧可比。
+    """
+    a = np.array(Image.open(path).convert('RGBA'))[:, :, 3]
+    rows = np.where((a > thr).any(axis=1))[0]
+    return int(rows[-1] - rows[0] + 1) if len(rows) else 0
+
+
 def measure(path, metric):
     if metric == 'eye':
         return eye_gap(path)
     if metric == 'torso':
         return torso_area(path)
+    if metric == 'height':
+        return bbox_height(path)
     return silhouette_area(path)
 
 
@@ -136,7 +155,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('pose')
     ap.add_argument('--ref', default='idle_1')
-    ap.add_argument('--metric', choices=['eye', 'torso', 'area'], default='eye')
+    ap.add_argument('--metric', choices=['eye', 'torso', 'area', 'height'], default='eye')
     ap.add_argument('--uniform', action='store_true',
                     help='组内统一系数（取均值），避免逐帧缩放引入帧间尺寸抖动')
     ap.add_argument('--dry', action='store_true')
@@ -152,9 +171,9 @@ def main():
 
     print(f'基准 {ref_label}: {args.metric} = {target:.1f}')
 
-    # eye 是线性量（比值即系数）；torso/area 是面积量，需开方才能得到线性系数
+    # eye / height 是线性量（比值即系数）；torso / area 是面积量，需开方才能得到线性系数
     def linear(v):
-        return target / v if args.metric == 'eye' else (target / v) ** 0.5
+        return target / v if args.metric in ('eye', 'height') else (target / v) ** 0.5
 
     plan = []
     for f in frames:

@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  # ---------- 测试：逻辑回归（440 断言） ----------
+  # ---------- 测试：逻辑回归（444 断言） ----------
   test:
     runs-on: ubuntu-latest
     steps:

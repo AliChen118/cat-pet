@@ -42,7 +42,7 @@
 | 产品版本 | `1.0.0` | `app/package.json` |
 | 配置结构版本 | `configVersion = 11` | `engine/config-schema.js` |
 | 设置项 | **9 组 56 项** | `engine/config-schema.js` |
-| 逻辑断言 | **440 条**，0 失败 | `tools/check/test_logic.js` |
+| 逻辑断言 | **444 条**，0 失败 | `tools/check/test_logic.js` |
 | 姿态 / 帧数 | **14 姿态 / 47 帧**（13 个序列 + `drag` 单帧） | `app/assets/sprites/frames/` |
 | 宠物窗口 | 640×640 透明置顶，不可缩放 | `app/main.js` `WIN_W/WIN_H` |
 | 精灵半宽 | `SPRITE_HALF_W = 253` | `renderer.js` / `main.js` / `tools/sprites/sprite_bounds.py` |

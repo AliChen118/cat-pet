@@ -77,7 +77,7 @@ cd CatDesktopPet/app
 
 npm ci            # 安装依赖（含 Electron 31）
 npm start         # 开发运行
-npm test          # 逻辑回归（tools/check/test_logic.js，440 条断言）
+npm test          # 逻辑回归（tools/check/test_logic.js，444 条断言）
 
 npm run dist:win      # Windows：便携版 + NSIS 安装版
 npm run dist:linux    # Linux：AppImage

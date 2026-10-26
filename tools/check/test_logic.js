@@ -2436,6 +2436,60 @@ async function run() {
     errors.push(`抚摸尺寸: ${e.message}`);
   }
 
+  /* ---- 4t. 伤心：尺寸与 idle 对齐（烘焙进素材），切回 idle 无尺寸过渡 ---- */
+  try {
+    const rsrc6 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+    const psrc6 = (rsrc6.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1] || '';
+    ok(psrc6.length > 0 && !/\bunhappy\b/.test(psrc6),
+      `伤心不再走运行时姿态缩放: POSE_SCALE = {${psrc6.trim()}}（底边锁高口径已烘焙，系数恒为 1）`);
+
+    const AnimCtor6 = vm.runInContext('Animator', sandbox);
+    const origDraw6 = AnimCtor6.prototype.draw;
+    const rec6 = [];
+    AnimCtor6.prototype.draw = function (ctx6, o) {
+      rec6.push({ name: this.current, mul: (o.mods && o.mods.scaleMul) || 1 });
+      return origDraw6.call(this, ctx6, o);
+    };
+    // 心情压到危急档：P4 每轮决策有 50% 转 unhappy，60 s 内能抽到多段
+    applyLive({
+      behavior: { needVoice: false, restiness: 0, animSpeed: 100, activityLevel: 'normal' },
+      needs: { decayHunger: 0, decayEnergy: 0, decayHappiness: 0, decayCleanliness: 0, decayAffinity: 0 },
+      runtime: { stats: { hunger: 70, energy: 95, happiness: 5, cleanliness: 90, affinity: 30, xp: 0 } },
+    });
+    frames(240, tRef);                       // 先让平滑值收敛，再开始记录
+    rec6.length = 0;
+    frames(3600, tRef);
+    AnimCtor6.prototype.draw = origDraw6;
+
+    const sadIdx = rec6.map((r, i) => (r.name === 'unhappy' ? i : -1)).filter((i) => i >= 0);
+    if (sadIdx.length === 0) {
+      console.log('[warn] 伤心: 本次抽样未命中（P4 为 50% 概率，覆盖由源级断言兜底）');
+    } else {
+      const sadMuls = sadIdx.map((i) => rec6[i].mul);
+      const maxSad = Math.max(...sadMuls.map((m) => Math.abs(m - 1)));
+      ok(maxSad < 1e-6,
+        `伤心: 采样 ${sadIdx.length} 帧，体形系数全程恒为 1（旧实现 0.84，进出各有一段 16% 的渐变）`);
+
+      // 段末 → 紧接的下一帧（切回 idle）尺寸必须无缝；并对全时段做一次最大帧间跳变扫描
+      const handoffs = [];
+      for (const i of sadIdx) {
+        const n6 = rec6[i + 1];
+        if (n6 && n6.name !== 'unhappy') handoffs.push(Math.abs(n6.mul - rec6[i].mul));
+      }
+      const maxHandoff = handoffs.length ? Math.max(...handoffs) : 0;
+      let maxStep = 0;
+      for (let i = 1; i < rec6.length; i++) {
+        maxStep = Math.max(maxStep, Math.abs(rec6[i].mul - rec6[i - 1].mul));
+      }
+      ok(maxHandoff < 1e-6,
+        `切回 idle: 尺寸无跳变（${handoffs.length} 次衔接，最大差 ${maxHandoff.toExponential(1)}）`);
+      ok(maxStep < 1e-6,
+        `全时段体形系数无任何帧间变化（最大 ${maxStep.toExponential(1)}，含姿态切换的淡化期）`);
+    }
+  } catch (e) {
+    errors.push(`伤心尺寸: ${e.message}`);
+  }
+
   /* ---------------- 断言 ---------------- */
 
   const EXPECTED = ['drag',

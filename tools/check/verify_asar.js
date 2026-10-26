@@ -69,6 +69,8 @@ ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(anim),
 const poseScale = grab(/const POSE_SCALE = \{([^}]*)\}/) || '';
 ok(!/tailwag/.test(poseScale), `renderer: POSE_SCALE 不再含 tailwag（{${poseScale.trim()}}）→ 运行期系数恒为 1`);
 ok(!/\bpet\b/.test(poseScale), 'renderer: POSE_SCALE 不再含 pet（抚摸比例已烘焙进素材，切回 idle 无尺寸过渡）');
+ok(!/\bunhappy\b/.test(poseScale),
+  'renderer: POSE_SCALE 不再含 unhappy（伤心比例已按底边锁高 k≈0.850 烘焙，切回 idle 无尺寸过渡）');
 ok(/pet\.tailwagEnd = animator\.clock \+ Core\.rand/.test(src),
   'renderer: 摇尾巴计时挂动画时钟');
 ok(/animator\.clock < pet\.tailwagEnd/.test(src) && /atCycleStart\(\) \? 'idle'/.test(src),

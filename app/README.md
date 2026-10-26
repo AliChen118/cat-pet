@@ -34,8 +34,8 @@ npm run dist:portable  # 只产出便携版
 
 | 产物 | 说明 |
 |------|------|
-| `CatDesktopPet-Portable-1.1.7.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
-| `CatDesktopPet-Setup-1.1.7.exe` | **安装版**：NSIS 一键安装（写入用户目录，可选桌面快捷方式，完成后自动运行） |
+| `CatDesktopPet-Portable-1.1.8.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
+| `CatDesktopPet-Setup-1.1.8.exe` | **安装版**：NSIS 一键安装（写入用户目录，可选桌面快捷方式，完成后自动运行） |
 
 打包方式：**electron-builder**（asar 归档 + Electron 31 运行时），应用图标 `build/icon.ico` 由精灵图 `idle.png` 自动生成（256/128/64/48/32/16 多尺寸）。用户数据（配置、备份）保存在 `%APPDATA%/cat-desktop-pet`，与程序目录分离，替换 exe 不丢数据；首次启动会自动写出默认 `config.json`。
 
