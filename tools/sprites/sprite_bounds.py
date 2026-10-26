@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-sprite_bounds.py — 测量精灵素材的内容边界，生成 animator.js 的 CONTENT_TOP_FALLBACK 表。
+sprite_bounds.py — 测量精灵素材的内容边界，生成两张静态表：
+
+  * animator.js 的 CONTENT_TOP_FALLBACK —— 气泡头顶定位（无实测时的回退）；
+  * renderer.js 的 POSE_SHADOW_K       —— 阴影圆盘随姿态的体积修正。
 
 用途
 ----
@@ -34,6 +37,26 @@ SPRITES = os.path.join(ROOT, 'app', 'assets', 'sprites')
 ALPHA_THRESHOLD = 8          # 与 animator.js 中 measureContentTop 保持一致
 ANCHOR_X = 256               # 躯干中心锚点（renderer.js 以此为 pet.x）
 SPRITE_HALF_W = 253          # renderer.js / main.js 中的活动边界半宽
+
+
+def core_area(path, thr=100, e=10):
+    """腐蚀核心面积（剥离细腿与尾巴）——用作「身体体积」代理，推导阴影缩放。
+
+    口径与 tools/sprites/fix_pose_frames.py 的 core_cx 一致（erode=10）。
+    面积是二维量，开方后才是线性比例。
+    """
+    a = np.array(Image.open(path).convert('RGBA').getchannel('A'))
+    m = a > thr
+    er = m.copy()
+    for _ in range(e):
+        # 3x3 十字结构元，逐次腐蚀；比一次大方块核更贴近 scipy 的默认行为
+        nxt = er.copy()
+        nxt[1:, :] &= er[:-1, :]
+        nxt[:-1, :] &= er[1:, :]
+        nxt[:, 1:] &= er[:, :-1]
+        nxt[:, :-1] &= er[:, 1:]
+        er = nxt
+    return int(er.sum())
 
 
 def content_top(path):
@@ -86,18 +109,23 @@ def check_half_width(poses):
     return 0
 
 
+def pose_paths(pose):
+    """该姿态实际被渲染引用的素材路径（优先序列帧，其次单姿态图）。"""
+    paths = sorted(glob.glob(os.path.join(SPRITES, 'frames', pose + '_*.png')))
+    if not paths:
+        single = os.path.join(SPRITES, pose + '.png')
+        if os.path.exists(single):
+            paths.append(single)
+    return paths
+
+
 def main():
     poses = ['idle', 'walk', 'run', 'jump', 'stretch', 'drag',
-             'sleep', 'eat', 'play', 'pet', 'meow', 'tailwag', 'unhappy', 'bath']
+             'sleep', 'eat', 'play', 'pet', 'meow', 'tailwag', 'unhappy', 'bath', 'lick']
     table = {}
 
     for pose in poses:
-        # 优先使用序列帧（渲染实际引用的素材）；无序列帧时才用单姿态图
-        paths = sorted(glob.glob(os.path.join(SPRITES, 'frames', pose + '_*.png')))
-        if not paths:
-            single = os.path.join(SPRITES, pose + '.png')
-            if os.path.exists(single):
-                paths.append(single)
+        paths = pose_paths(pose)
         tops = [t for t in (content_top(p) for p in paths) if t >= 0]
         if not tops:
             continue
@@ -119,6 +147,32 @@ def main():
         line += piece
     print(line.rstrip().rstrip(',') + ',')
     print('};')
+
+    # ---- 阴影圆盘的姿态体积修正 ----
+    # 身体体积用「腐蚀核心面积」代理（剥掉细腿与尾巴），面积开方得到线性比例。
+    print('\n---- 复制到 renderer.js ----')
+    cores = {}
+    for pose in poses:
+        paths = pose_paths(pose)
+        vals = [core_area(p) for p in paths]
+        if vals:
+            cores[pose] = sum(vals) / len(vals)
+            print('%-8s core=%-8.0f' % (pose, cores[pose]))
+    base = cores.get('idle')
+    if base:
+        print('\nconst POSE_SHADOW_K = {')
+        line = '  '
+        for pose in poses:
+            if pose not in cores:
+                continue
+            kk = (cores[pose] / base) ** 0.5
+            piece = '%s: %.3f, ' % (pose, kk)
+            if len(line) + len(piece) > 76:
+                print(line.rstrip())
+                line = '  '
+            line += piece
+        print(line.rstrip().rstrip(',') + ',')
+        print('};')
 
     return check_half_width(poses)
 

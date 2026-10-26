@@ -20,6 +20,14 @@ const Schema = require(path.join(ROOT, 'engine', 'config-schema.js'));
 const I18N = require(path.join(ROOT, 'engine', 'i18n.js'));
 const NP = require(path.join(ROOT, 'engine', 'needs-profile.js'));
 
+/** 解析 animator.js 里某个 `new Set([...])` 常量成员（顺序无关，供源码守卫断言） */
+function setMembers(src, constName) {
+  const re = new RegExp(constName + '\\s*=\\s*new Set\\(\\[([\\s\\S]*?)\\]');
+  const m = src.match(re);
+  return m ? (m[1].match(/'([a-zA-Z]+)'/g) || []).map((t) => t.slice(1, -1)) : [];
+}
+const nfbOf = (src) => setMembers(src, 'NO_FRAME_BLEND');
+
 let fail = 0;
 function ok(cond, msg) {
   if (cond) console.log('[ok] ' + msg);
@@ -2087,9 +2095,11 @@ async function run() {
       `进食结束必播舔爪: 出现顺序 eat@${iEat} → lick@${iLick}（舔爪帧共 ${seq.filter((s) => s.startsWith('lick_')).length} 次）`);
 
     /* ---- 残影 / 截断回归 ---- */
+    // NO_FRAME_BLEND 是多行数组，按位置匹配的正则会被元素顺序变化误伤，
+    // 统一用 setMembers()「取全部名字再判断包含」。
     const animSrc = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
-    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'lick'[^)]*\)/.test(animSrc),
-      '舔爪不参与帧间插值: 相邻帧 IoU 0.86–0.95，叠加会出现双爪/双头残影');
+    ok(nfbOf(animSrc).includes('lick'),
+      '舔爪不参与帧间插值: 相邻帧 IoU 0.86，叠加会出现双爪/双头残影');
     ok(/frameDur\(name, idx\)/.test(animSrc) && /clamp01\(frameTime \/ curDur\)/.test(animSrc),
       '插值窗口按帧实际停留时长计算并夹取到 [0,1]（hold 帧不再出现「满不透明闪一下再消失」）');
     ok(/pet\.lickEnd\s*=\s*animator\.clock\s*\+/.test(src) && /animator\.clock >= pet\.lickEnd/.test(src),
@@ -2169,8 +2179,8 @@ async function run() {
     ok(/if \(nxt === 0\) this\.laps\+\+/.test(animSrc2)
       && /atCycleStart\(\)\s*\{\s*return this\.frameIndex === 0;/.test(animSrc2),
       'animator: 环回首帧时累计轮数（动画时间域，动效倍率不影响）');
-    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'walk'[^)]*'run'[^)]*\)/.test(animSrc2),
-      '走/跑不参与帧间插值: IoU 0.56–0.75，叠加会变四条腿');
+    ok(['walk', 'run'].every((p) => nfbOf(animSrc2).includes(p)),
+      '走/跑不参与帧间插值: IoU 0.59–0.69，叠加会变四条腿');
     ok(/pet\.walkSpeed = Math\.min\(WALK_SPEED, span \/ WALK_MIN_TIME\)/.test(rsrc),
       '步速反算: 距离短则放慢，到达时正好满 2 轮，且不会走过头');
     ok(/function runSpeedFor/.test(rsrc) && /RUN_SLOW_FLOOR/.test(rsrc),
@@ -2277,8 +2287,8 @@ async function run() {
     const animSrc3 = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
     const rsrc3 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
 
-    ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(animSrc3),
-      '摇尾巴不参与帧间插值: 相邻帧 IoU 0.76–0.92，叠加会出现两条尾巴');
+    ok(nfbOf(animSrc3).includes('tailwag'),
+      '摇尾巴不参与帧间插值: 相邻帧 IoU 0.77，叠加会出现两条尾巴');
 
     // 比例已烘焙进素材（tools/sprites/normalize_pose_size.py 眼距口径 k≈0.93），运行时系数必须恒为 1
     const psrc = (rsrc3.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1];
@@ -2395,7 +2405,7 @@ async function run() {
   try {
     const rsrc5 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
     const psrc5 = (rsrc5.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1] || '';
-    ok(psrc5.length > 0 && !/\bpet\b/.test(psrc5),
+    ok(psrc5 != null && !/\bpet\b/.test(psrc5),
       `抚摸不再走运行时姿态缩放: POSE_SCALE = {${psrc5.trim()}}（比例已烘焙进素材，系数恒为 1）`);
 
     const AnimCtor4 = vm.runInContext('Animator', sandbox);
@@ -2440,7 +2450,7 @@ async function run() {
   try {
     const rsrc6 = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
     const psrc6 = (rsrc6.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1] || '';
-    ok(psrc6.length > 0 && !/\bunhappy\b/.test(psrc6),
+    ok(psrc6 != null && !/\bunhappy\b/.test(psrc6),
       `伤心不再走运行时姿态缩放: POSE_SCALE = {${psrc6.trim()}}（底边锁高口径已烘焙，系数恒为 1）`);
 
     const AnimCtor6 = vm.runInContext('Animator', sandbox);
@@ -2496,7 +2506,7 @@ async function run() {
     'walk_1', 'walk_2', 'walk_3', 'walk_4', 'run_1', 'run_2', 'run_3', 'run_4',
     'tailwag_1', 'tailwag_2', 'tailwag_3', 'tailwag_4', 'unhappy_1', 'unhappy_2',
     'idle_1', 'idle_2', 'idle_3', 'idle_4',
-    'eat_1', 'eat_2', 'eat_3', 'eat_4',
+    'eat_1', 'eat_4',   // eat_2/eat_3 与 eat_1 近乎重复（IoU 0.99/0.98），已不进序列
     'play_1', 'play_2', 'play_3', 'play_4',
     'pet_1', 'pet_2', 'pet_3',
     'jump_1', 'jump_2', 'jump_3',
@@ -2601,10 +2611,20 @@ async function run() {
 
     ok(sawBath, `姿态平滑: 采样窗口内确实切到 bath 姿态（${namesSmooth.join(',') || '无'}）`);
     ok(seq.length > 100, `姿态平滑: 采样到 ${seq.length} 帧有效绘制`);
-    // 窗口内必须真的发生了大幅体形变化（否则断言「平滑」没有意义）
+    // 1.1.10 起：全部姿态比例已烘焙进素材（tools/sprites/fix_pose_frames.py），
+    // 运行时 POSE_SCALE 为空表 —— 切姿态时体形必须**零变化**，而不是「平滑地变化」。
     const swing = Math.max(...seq) - Math.min(...seq);
-    ok(swing > 0.08,
-      `姿态平滑: 窗口内体形变化幅度 ${swing.toFixed(3)}（bath 0.87 ↔ idle 1.0 校正，确有切换）`);
+    ok(swing < 0.005,
+      `姿态平滑: 窗口内体形变化幅度 ${swing.toFixed(4)}（比例已烘焙进素材，进出 bath 不再缩放）`);
+    // 机制本身仍在：空表 + 平滑函数 + 离场画面的独立系数
+    const rsrcScale = fs.readFileSync(path.join(ROOT, 'renderer.js'), 'utf8');
+    ok(/const POSE_SCALE = \{\s*\}/.test(rsrcScale),
+      '姿态平滑: POSE_SCALE 为空表（姿态尺寸已全部烘焙进素材）');
+    ok(/prevScaleMul: posePrev/.test(rsrcScale) && /poseTargetPrev/.test(rsrcScale),
+      '姿态平滑: 离场画面用 posePrev 定格旧尺寸（不再跟着进场姿态一起缩）');
+    const asrcScale = fs.readFileSync(path.join(ROOT, 'engine', 'animator.js'), 'utf8');
+    ok(/prevScaleMul/.test(asrcScale) && /Object\.assign\(\{\}, mods, \{ scaleMul: mods\.prevScaleMul \}\)/.test(asrcScale),
+      '姿态平滑: 动画器按 prevScaleMul 重算离场帧的 scaleMul');
     // 旧实现：切姿态那一帧直接跳 |0.87-1.0|×0.88 ≈ 0.114；平滑后单帧应 < 0.02
     ok(maxStep < 0.02,
       `姿态平滑: 相邻帧体形变化最大 ${maxStep.toFixed(4)}（旧实现切姿态单帧跳变 0.114）`);

@@ -19,13 +19,23 @@ const SPRITE_CENTER = 256;
 const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 
 /**
- * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大
- * （实测 alpha 掩膜 IoU：lick 0.86–0.95、walk 0.59–0.75、run 0.56–0.68、
- *  tailwag 0.76–0.92，而 idle 0.97–1.00）。
- * 插值实现是「当前帧实心 + 下一帧按 k 叠上去」，差异大的姿态会产生
- * 两个轮廓同时可见的残影（双爪 / 双头 / 两条尾巴 / 四条腿），因此这类姿态直接硬切。
+ * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大。
+ *
+ * 判据：相邻帧 alpha 掩膜最小 IoU < 0.90。插值实现是「当前帧实心 + 下一帧按 k
+ * 叠上去」，差异大的姿态会让两个轮廓同时可见——双爪 / 双头 / 两条尾巴 /
+ * 两只球（play）/ 两个食盆（eat），因此这类姿态直接硬切。
+ *
+ * 实测最小相邻帧 IoU（素材归一化后复测，跑 tools/check/pose_iou.py 可复现）：
+ *   run 0.59　jump 0.68　walk 0.69　stretch 0.75　tailwag 0.77　bath 0.79
+ *   unhappy 0.80　play 0.82　eat 0.84　lick 0.86　　← 全部硬切
+ *   sleep 0.94　pet 0.94　idle 0.98　meow 0.99　　　← 保留插值（差异小，淡化更顺）
+ *
+ * 新增姿态时先跑一次 pose_iou.py：<0.90 就加进这个集合，否则会出现残影。
  */
-const NO_FRAME_BLEND = new Set(['lick', 'walk', 'run', 'tailwag']);
+const NO_FRAME_BLEND = new Set([
+  'run', 'jump', 'walk', 'stretch', 'tailwag',
+  'bath', 'unhappy', 'play', 'eat', 'lick',
+]);
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -36,9 +46,9 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
  * 取姿态内最高帧（顶值最小）作为姿态级常量，保证同姿态下气泡不抖动。
  */
 const CONTENT_TOP_FALLBACK = {
-  idle: 130, walk: 71, run: 70, jump: 130, stretch: 130, drag: 70,
-  sleep: 130, eat: 130, play: 130, pet: 130, meow: 130, tailwag: 70, unhappy: 70,
-  bath: 71, lick: 130,
+  idle: 130, walk: 99, run: 110, jump: 112, stretch: 130, drag: 99,
+  sleep: 130, eat: 130, play: 99, pet: 91, meow: 128, tailwag: 101,
+  unhappy: 131, bath: 93, lick: 104,
 };
 
 function loadImage(src) {
@@ -308,7 +318,13 @@ class Animator {
     const useNext = (this.current === 'idle' && this.blinkCfg) ? this.nextIdx : null;
 
     if (this.prev && this.blend < 1) {
-      this._drawSeq(ctx, this.prev, this.prevFrame, 1 - this.blend, x, y, scale, facing, mods, 0, 0, null);
+      // 离场画面必须用它自己的姿态缩放系数（mods.prevScaleMul）：
+      // mods.scaleMul 是「进场」姿态的，直接复用会把仍在淡出的旧姿态一起缩放，
+      // 表现为「整只猫先缩一下，再以新尺寸换成新姿态」。
+      const prevMods = (mods.prevScaleMul != null && mods.prevScaleMul !== mods.scaleMul)
+        ? Object.assign({}, mods, { scaleMul: mods.prevScaleMul })
+        : mods;
+      this._drawSeq(ctx, this.prev, this.prevFrame, 1 - this.blend, x, y, scale, facing, prevMods, 0, 0, null);
     }
     if (this.current) {
       this._drawSeq(

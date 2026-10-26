@@ -75,8 +75,8 @@ idle ──决策──► walk ──加速──► run
 **循环播放的实现**
 
 - `SPRITE_FILES.walk / run` 是 4 帧显式数组，`animator.play('walk', 0.16)` 后由普通分支按 `1/fps` 推进，`frameIndex = (i + 1) % 4` 无限循环。
-- 首尾衔接：素材按 331 px 腐蚀核心、底边 468 三重对齐，逐帧校验 `walk_4 → walk_1` 的 alpha 掩膜 IoU **0.624**，与普通相邻帧（0.59–0.75）同量级，接缝不比其他步态更陡；`run` 的接缝 0.680 甚至是同期最平滑的一档。
-- `walk / run` 已列入 `NO_FRAME_BLEND`：两两 IoU 只有 0.56–0.75，帧间插值会把上下两个步态叠在一起（四条腿），因此改为硬切——11/13 fps 的硬切本身就是标准精灵动画节奏。
+- 首尾衔接：素材按腐蚀核心质心 x=256、底边 y=469 双重对齐（1.1.10 起由 `tools/sprites/fix_pose_frames.py` 统一），逐帧校验 `walk_4 → walk_1` 的 alpha 掩膜 IoU **0.687**，与普通相邻帧（0.69）同量级，接缝不比其他步态更陡；`run` 的接缝 0.585 同样是该序列里最平滑的一档。
+- `walk / run` 已列入 `NO_FRAME_BLEND`：最小相邻帧 IoU 只有 0.69 / 0.59，帧间插值会把上下两个步态叠在一起（四条腿），因此改为硬切——11/13 fps 的硬切本身就是标准精灵动画节奏。判据是 **IoU < 0.90 即硬切**，用 `tools/check/pose_iou.py` 随时复核。
 - 不出现跳帧：`update()` 用 `while + guard` 消化长帧间隔（单帧 dt 上限 0.05 s，最多补 1 帧），`walk/run` 没有 `hold` 覆盖，帧间隔恒为 `1/fps`，不会走走停停。
 
 ### 摇尾巴：触发、退出与体型一致
@@ -86,8 +86,8 @@ idle ──决策──► walk ──加速──► run
 | 触发 | 只由 `decide()` 的加权表触发（`tailwag` 权重 0.04–0.07），不在 `INTERRUPTIBLE` 之外的任何入口 |
 | 时长 | `pet.tailwagEnd = animator.clock + rand(2.2, 3.6)`，挂在**动画时钟**上，动效倍率 85% 时不会被墙钟提前掐断 |
 | 退出 | **双条件**：`animator.clock ≥ tailwagEnd` 且 `animator.atCycleStart()`。4 帧 @7 fps = 0.57 s/轮，2.2–3.6 s 至少 4 轮，收在循环首帧（`tailwag_1`，尾巴自然下垂）再淡入 idle |
-| 残影 | `tailwag` 列入 `NO_FRAME_BLEND` 硬切——相邻帧 IoU 只有 0.76–0.92，插值会把两条不同位置的尾巴叠成"双尾" |
-| 体型 | 比例已烘焙进素材（眼距归一 k≈0.93），`POSE_SCALE` 不再含 `tailwag`，运行期系数恒为 1，进出该状态**没有尺寸过渡** |
+| 残影 | `tailwag` 列入 `NO_FRAME_BLEND` 硬切——最小相邻帧 IoU 0.77（低于 0.90 判据），插值会把两条不同位置的尾巴叠成"双尾" |
+| 体型 | 比例已烘焙进素材（1.1.10 由 `fix_pose_frames.py` 统一到眼距 100.2%），`POSE_SCALE` 为空表，运行期系数恒为 1，进出该状态**没有尺寸过渡** |
 
 ### 伤心：体型与 idle 一致
 

@@ -76,7 +76,7 @@ cd CatDesktopPet/app
 
 npm ci            # 安装依赖（含 Electron 31）
 npm start         # 开发运行
-npm test          # 逻辑回归（tools/check/test_logic.js，444 条断言）
+npm test          # 逻辑回归（tools/check/test_logic.js，447 条断言）
 
 npm run dist:win      # Windows：便携版 + NSIS 安装版
 npm run dist:linux    # Linux：AppImage
@@ -114,6 +114,8 @@ git push origin --tags
 
 - 应用只读取 `app/assets/` 下的素材；`assets-src/` 不参与打包，仅供再生成。
 - 素材重跑：`python tools/sprites/rebuild_sprites.py`（原图 → 抠图 → 归一化，单姿态成片落 `assets-src/sprites-poses/`，`drag.png` 同步进 `app/assets/sprites/`）。
+- 姿态统一：`python tools/sprites/fix_pose_frames.py`（一次性把 52 帧的尺度/横向对位/落地基线统一，可 `--dry` 预演、`--restore` 回滚）。
+- 改完素材必跑：`python tools/sprites/sprite_bounds.py`（重算 `CONTENT_TOP_FALLBACK` 与 `POSE_SHADOW_K` 两张表 + 横向余量校验）、`python tools/check/pose_iou.py`（校验 `NO_FRAME_BLEND` 是否与实测 IoU 一致）。
 - 叫声重跑：`python tools/audio/import_voice_sfx.py`（切片 → 音色 → 响度归一 → OGG，参数表驱动）。
 
 ## 许可证

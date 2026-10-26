@@ -37,6 +37,20 @@
   const SHADOW_LIFT = 280;         // 起跳多高时阴影淡至最小
   const SHADOW_ALPHA = 0.15;       // 落地时的阴影不透明度
 
+  /**
+   * 阴影的姿态体积修正：各姿态身体占地在 269–465 px 之间浮动（±27%），
+   * 固定半径的阴影会在 run/walk 这种铺平的姿态下明显偏小（猫像浮在影子上），
+   * 在 sleep 蜷起来时又偏大。
+   *
+   * 系数 = sqrt(该姿态腐蚀核心面积均值 / idle)，由 tools/sprites/sprite_bounds.py
+   * 生成（跑一次即输出，改素材后必须重新生成）。范围 0.95–1.18，无需夹取。
+   */
+  const POSE_SHADOW_K = {
+    idle: 1.000, walk: 0.946, run: 0.961, jump: 1.041, stretch: 0.961,
+    drag: 1.010, sleep: 0.965, eat: 0.967, play: 1.032, pet: 0.998,
+    meow: 1.011, tailwag: 1.066, unhappy: 1.000, bath: 1.036, lick: 1.029,
+  };
+
   /* ---- 气泡定位（紧贴猫头顶，尺寸固定、不随体型缩放） ---- */
   const SPRITE_GROUND_Y = 470;     // 素材基线，与 engine/animator.js 保持一致
   const BUBBLE_GAP = 2;            // 尖角末端与猫头顶的间距（贴近宠物）
@@ -105,10 +119,11 @@
       'assets/sprites/frames/sleep_2.png',
       'assets/sprites/frames/sleep_3.png',
     ],
+    // eat_1/2/3 三帧几乎完全重合（相邻帧 IoU 0.99 / 0.98，bbox 同为 313 宽），
+    // 真正有区别的只有 eat_4。保留 4 帧等于「停 3 帧再换 1 帧」的顿挫，
+    // 这里只播两个有效关键帧并放慢到 4 fps，得到均匀的 2 Hz 咀嚼节奏。
     eat: [
       'assets/sprites/frames/eat_1.png',
-      'assets/sprites/frames/eat_2.png',
-      'assets/sprites/frames/eat_3.png',
       'assets/sprites/frames/eat_4.png',
     ],
     play: [
@@ -156,7 +171,7 @@
   /* ---- 各姿态帧率：呼吸/睡/伸懒腰慢，玩耍/喵叫轻快，走跑最快 ---- */
   const SPRITE_FPS = {
     walk: 11, run: 13, tailwag: 7, unhappy: 2,
-    idle: 5, eat: 6, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
+    idle: 5, eat: 4, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
     bath: 6, lick: 5,
   };
 
@@ -242,42 +257,61 @@
    * 切姿态时会看到猫「突然变大/变小」。这里按 idle 基准逐姿态校正，
    * 锚点仍为素材 (256,470)（脚底贴地、躯干居中），不影响站位与阴影。
    *
-   * 这是「兜底」手段：离散查表 + 帧级平滑，切姿态时仍有一次约 0.35s 的过渡。
-   * 更彻底的做法是把比例烘焙进素材（tools/sprites/normalize_pose_size.py），
-   * 运行时系数恒为 1，进出该姿态完全没有尺寸过渡——tailwag（眼距口径，k≈0.93）、
-   * pet（整幅面积口径，k≈1.117）、unhappy（底边锁高口径，k≈0.850）都已按此改造，
-   * 见 docs/02-animation.md「姿态尺寸一致性」。剩下的 bath 是最后一项待改造的。
+   * ⚠ 这张表现在是空的：全部 15 个姿态的比例都已**烘焙进素材**，
+   *   运行时系数恒为 1，进出任何姿态都没有尺寸过渡。
+   *   烘焙工具：tools/sprites/fix_pose_frames.py（一次性统一尺度/对位/落地）
+   *   口径明细见 docs/02-animation.md「姿态尺寸一致性」。
+   *
+   * 新增姿态时优先改素材，不要往这里加系数——离散查表 + 帧级平滑会在切姿态时
+   * 留下一段约 0.4s 的尺寸过渡，而且必须靠 mods.prevScaleMul 才能让离场画面不跟着缩。
+   * 表本身保留，仅作应急兜底。
    */
-  const POSE_SCALE = { bath: 0.87 };
+  const POSE_SCALE = {};
   function poseScale() { return POSE_SCALE[fsm.name] || 1; }
 
   /* ---- 显示缩放的帧级平滑 ----
-   * 姿态校正表是「按姿态名查表」的离散值，切姿态的那一帧会整块生效（bath −13%），
-   * 而帧序列只做图像交叉淡化、不插值缩放，
-   * 于是出现「一瞬间体型突变」。体型（设置/滚轮）同理：直接赋值也是瞬跳。
+   * 姿态校正表（上面那张）是「按姿态名查表」的离散值，若表里有非 1 项，切姿态的那
+   * 一帧会整块生效，而帧序列只做图像交叉淡化、不插值缩放，于是出现「一瞬间体型突变」。
+   * 体型（设置/滚轮）同理：直接赋值也是瞬跳。
    * 这里把「姿态校正 poseCur」「体型 sizeCur」各做一次指数平滑（≈0.12s 时间常数），
    * 所有绘制与几何（精灵、阴影、食碗、气泡头顶、特效锚点）统一读平滑值，
    * 逻辑量（bounds 边界、命中判定、面板定位）仍用目标值 pet.scale，互不干扰。
+   * 当前表为空，poseCur 恒为 1；这套机制保留下来是为了将来应急加系数时不至于又踩坑。
    */
   const SCALE_SMOOTH = 0.0004;    // 与 HEAD_SMOOTH 同量级：每帧约收敛 12%，0.35s 内到位
   let sizeCur = BASE_SCALE;       // 平滑后的体型
-  let poseCur = 1;                // 平滑后的姿态校正
+  let poseCur = 1;                // 平滑后的姿态校正（当前姿态）
+  let posePrev = 1;               // 上一个姿态的校正值：供仍在淡出的离场画面使用
+  let poseTargetPrev = null;      // 上一次查表得到的姿态目标值，用于识别「切姿态」这一刻
+  let shadowKCur = 1;             // 平滑后的阴影姿态体积修正
   let scaleReady = false;         // 首帧前直接对齐，避免启动时从基准值滑入
 
   function updateScaleSmoothing(dt) {
     const poseTarget = poseScale();
+    const shadowTarget = POSE_SHADOW_K[fsm.name] || 1;
     // 首帧 / 无 dt：直接对齐目标，杜绝启动首帧的「滑入」动画
     if (!scaleReady || !(dt > 0)) {
       sizeCur = pet.scale;
       poseCur = poseTarget;
+      posePrev = poseTarget;
+      poseTargetPrev = poseTarget;
+      shadowKCur = shadowTarget;
       scaleReady = true;
       return;
     }
+    // 切姿态的那一刻把「旧姿态的尺寸」定格给离场画面：
+    // 否则 poseCur 一路平滑到新值，仍在淡出的旧姿态会跟着缩
+    //（表现为「整只猫先缩一下再换成新姿态」）。动画器的交叉淡化只有 0.18s，
+    //  远短于尺寸平滑的 0.41s，所以离场期间用固定值即可。
+    if (poseTargetPrev !== null && poseTarget !== poseTargetPrev) posePrev = poseCur;
+    poseTargetPrev = poseTarget;
     sizeCur = Core.damp(sizeCur, pet.scale, SCALE_SMOOTH, dt);
     poseCur = Core.damp(poseCur, poseTarget, SCALE_SMOOTH, dt);
+    shadowKCur = Core.damp(shadowKCur, shadowTarget, SCALE_SMOOTH, dt);
     // 足够接近时吸附，避免长期停在小数差上
     if (Math.abs(sizeCur - pet.scale) < 1e-4) sizeCur = pet.scale;
     if (Math.abs(poseCur - poseTarget) < 1e-4) poseCur = poseTarget;
+    if (Math.abs(shadowKCur - shadowTarget) < 1e-4) shadowKCur = shadowTarget;
   }
 
   /* ---- 特效定位：一律按「猫当前的实际显示几何」换算（engine/fx.js） ----
@@ -1815,7 +1849,7 @@
   }
 
   function computeMods() {
-    const m = { bob: 0, squashY: 1, squashX: 1, tilt: 0, scaleMul: poseCur };
+    const m = { bob: 0, squashY: 1, squashX: 1, tilt: 0, scaleMul: poseCur, prevScaleMul: posePrev };
     if (config.appear.reduceMotion) {
       // 减少动态效果：跳过程序化微动与落地位移缓冲（姿态级尺寸校正保留——它是尺寸不是动效）
       return m;
@@ -1898,6 +1932,7 @@
   function drawShadow() {
     if (!config.appear.showShadow) return;
     const k = sizeCur / BASE_SCALE;                        // 体型缩放系数（平滑值，无跳变）
+    const ks = shadowKCur;                                 // 姿态体积修正（平滑值）
     const lift = clamp(1 - (-pet.y) / SHADOW_LIFT, 0.22, 1); // 离地越高越小越淡
     ctx.save();
     ctx.globalAlpha = SHADOW_ALPHA * lift;
@@ -1906,8 +1941,8 @@
     ctx.ellipse(
       pet.x,
       GROUND + 7 * k,
-      SHADOW_RX * k * lift,
-      SHADOW_RY * k * lift,
+      SHADOW_RX * k * ks * lift,
+      SHADOW_RY * k * ks * lift,
       0, 0, Math.PI * 2
     );
     ctx.fill();
