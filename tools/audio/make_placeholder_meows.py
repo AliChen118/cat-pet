@@ -6,7 +6,7 @@
 阶段 2 换成真实素材时：把同名 .ogg 放进 assets/audio/meow/ 即可（播放器 .ogg 优先），
 本脚本产物可直接删除。
 
-用法：python tools/make_placeholder_meows.py
+用法：python tools/audio/make_placeholder_meows.py
 """
 import math
 import os

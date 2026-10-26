@@ -5,9 +5,13 @@
 同时输出一张横向条带 design/preview-lick-paw-strip.png 便于静态查看。
 """
 import os
+import sys
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 FRAMES = [os.path.join(ROOT, 'app', 'assets', 'sprites', 'frames', f'lick_{i}.png')
           for i in range(1, 5)]
 OUT_GIF = os.path.join(ROOT, 'design', 'preview-lick-paw.gif')

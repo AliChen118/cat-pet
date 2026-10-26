@@ -1,15 +1,15 @@
 /* 校验打包产物内的 asar 内容：版本、舔爪节奏常量、帧清单逐帧 MD5。
- * 用法：node tools/verify_asar.js <asar 路径> [磁盘 frames 目录]
- * 默认：dist-113-r2/win-unpacked/resources/app.asar + app/assets/sprites/frames
+ * 用法：node tools/check/verify_asar.js <asar 路径> [磁盘 frames 目录]
+ * 默认：dist/win-unpacked/resources/app.asar + app/assets/sprites/frames
  * 只读校验，不启动应用，不影响正在运行的实例。
  */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const asar = require('../app/node_modules/@electron/asar');
+const asar = require('../../app/node_modules/@electron/asar');
 
-const ROOT = path.resolve(__dirname, '..');
-const ASAR = path.resolve(ROOT, process.argv[2] || 'dist-113-r2/win-unpacked/resources/app.asar');
+const ROOT = path.resolve(__dirname, '..', '..');
+const ASAR = path.resolve(ROOT, process.argv[2] || 'dist/win-unpacked/resources/app.asar');
 const DISK = path.resolve(ROOT, process.argv[3] || 'app/assets/sprites/frames');
 
 let fail = 0;

@@ -2,6 +2,11 @@
 const TARGET = 'http://127.0.0.1:9222';
 const SECONDS = Number(process.argv[2] || 90);
 const fs = require('fs');
+const path = require('path');
+
+// 仓库根 = tools/probe 的上两级
+const ROOT = path.resolve(__dirname, '..', '..');
+const OUT = path.join(ROOT, '_backup', 'blink_live.json');
 
 async function main() {
   const list = await (await fetch(TARGET + '/json')).json();
@@ -79,7 +84,8 @@ async function main() {
     const uniq = new Set(gaps.map((g) => Math.round(g * 10)));
     console.log('间隔极差:', (Math.max(...gaps) - Math.min(...gaps)).toFixed(2), 's  不同值:', uniq.size, '/', gaps.length);
   }
-  fs.writeFileSync('E:/AI Work/桌面宠物/_backup/blink_live.json', raw, 'utf8');
+  fs.mkdirSync(path.dirname(OUT), { recursive: true });
+  fs.writeFileSync(OUT, raw, 'utf8');
   ws.close();
 }
 main().catch((e) => { console.log('ERR', e.message); process.exit(1); });

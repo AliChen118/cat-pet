@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """对命中文件逐个放大命中区域并高亮，拼成总览图，供人工判读。
 
-用法: python tools/magenta_region_view.py <图目录> <输出png> [score阈值] [B-G阈值]
+用法: python tools/legacy/magenta_region_view.py <图目录> <输出png> [score阈值] [B-G阈值]
 """
 import os
 import sys

@@ -22,7 +22,7 @@ import_voice_sfx.py — 把线上抓到的 CC0 / CC-BY 猫叫源加工成可直�
   lonely_2 idle_1 idle_2 purr_1 purr_2（15 条；pet_2 于 12:57 按用户要求移除）
   （sad/dirty/urgent/sys 等未勾选素材已移除，引擎 SPEC 同步裁剪）
 
-用法：python tools/import_voice_sfx.py [--dry]
+用法：python tools/audio/import_voice_sfx.py [--dry]
 """
 import argparse
 import json
@@ -34,14 +34,16 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import butter, sosfilt, resample_poly, lfilter
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # 同目录兄弟模块
 from import_meows import (SR, biquad, compress, db, highpass, lowpass, loudnorm,
                           read_mono, resample_rate, soft_fade, soft_limit, trim_silence)  # noqa: E402
+from _root import find_root  # noqa: E402
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = find_root()
 RAW = os.path.join(ROOT, 'assets-src', 'audio-raw')
 OUT = os.path.join(ROOT, 'app', 'assets', 'audio', 'meow')
-MANIFEST = os.path.join(ROOT, '_voice_manifest.json')
+MANIFEST = os.path.join(ROOT, 'archive', 'audio-history', '_voice_manifest.json')
 
 # 源别名 → 原始文件（相对 assets-src/audio-raw）
 SOURCES = {

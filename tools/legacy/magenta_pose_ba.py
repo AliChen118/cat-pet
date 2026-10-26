@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """逐姿态输出「修复前（上） / 修复后（下）」整帧对照，透明区用洋红底衬出。
 
-用法: python tools/magenta_pose_ba.py <before目录> <after目录> <姿态名> <输出png>
+用法: python tools/legacy/magenta_pose_ba.py <before目录> <after目录> <姿态名> <输出png>
 """
 import os
 import sys

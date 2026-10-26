@@ -41,22 +41,30 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 
 ```
 桌面宠物/
-├── app/                  应用源码（Electron 主进程 / 渲染进程 / 引擎模块 / 运行期素材）
-│   ├── engine/           状态机、动画、属性模型、配置 schema、i18n、语音、AI 自言自语
-│   ├── assets/           运行期素材（sprites/frames、audio/meow、tray 图标）
-│   ├── build/            打包资源（icon.ico / icon.png）
-│   └── main.js …         主进程与各渲染窗口入口
-├── assets-src/           素材源（不打包）
-│   ├── raw/              AI 生成的洋红底原图：poses / frames / actions / inbetween
-│   ├── sprites-poses/    抠图归一化后的单姿态成片（rebuild_sprites.py 产物）
-│   ├── audio-raw/        抓取的原始叫声与呼噜录音（CC0）
-│   ├── previews/         试听页、抠图对比页、循环展开图（单文件自包含）
-│   └── style-options/    早期风格候选图（归档）
-├── docs/                 规格与决策文档（README.md 为索引，history/ 为方案原稿）
-├── tools/                素材管线、音频处理、逻辑测试、实机探针
-├── dist/                 构建产物（electron-builder 输出）
-├── archive/              本地归档（不入库）
-└── .github/workflows/    CI 构建与发布流水线
+├── app/                        应用源码（构建输入，目录层级不可随意变动）
+│   ├── engine/                 状态机、动画、属性模型、配置 schema、i18n、语音、AI 自言自语
+│   ├── assets/                 运行期素材（sprites/frames、audio/meow、tray 图标）
+│   ├── build/                  打包资源（icon.ico / icon.png）
+│   └── main.js …               主进程与各渲染窗口入口
+├── assets-src/                 素材源（不打包，部分入库）
+│   ├── raw/                    AI 生成原图：poses / frames / actions / inbetween / generated
+│   ├── sprites-poses/          抠图归一化后的单姿态成片（rebuild_sprites.py 产物）
+│   ├── audio-raw/              抓取的原始叫声与呼噜录音（CC0）
+│   ├── previews/               试听页、抠图对比页、循环展开图（单文件自包含）
+│   └── style-options/          早期风格候选图（归档）
+├── docs/                       规格与决策文档（README.md 为索引，history/ 为方案原稿）
+├── tools/                      辅助脚本（按用途分层）
+│   ├── _root.py                仓库根定位（子目录脚本共用）
+│   ├── check/                  回归与校验：test_logic.js、verify_asar.js
+│   ├── probe/                  实机探针：打包版/走跑/摇尾巴/抚摸/眨眼/取色
+│   ├── sprites/                素材管线：抠图、归一化、接缝审计、预览
+│   ├── audio/                  音频管线：抓取、导入、音色分析、报告生成
+│   └── legacy/                 一次性历史脚本（洋红底修复等，只读留存）
+├── design/                     设计稿与验收图（preview/ 演示图、checks/ 对比图）
+├── dist/                       构建产物（electron-builder 输出，不入库）
+├── archive/                    本地归档（不入库）：shots/ 截图、audio-history/ 音频报表
+├── _backup/                    可回滚快照（不入库）：pose-orig、sfx/tone 精选前素材
+└── .github/workflows/          CI 构建与发布流水线
 ```
 
 ## 从源码构建
@@ -69,7 +77,7 @@ cd CatDesktopPet/app
 
 npm ci            # 安装依赖（含 Electron 31）
 npm start         # 开发运行
-npm test          # 逻辑回归（tools/test_logic.js，379 条断言）
+npm test          # 逻辑回归（tools/check/test_logic.js，440 条断言）
 
 npm run dist:win      # Windows：便携版 + NSIS 安装版
 npm run dist:linux    # Linux：AppImage
@@ -106,8 +114,8 @@ git push origin --tags
 ## 路径约定
 
 - 应用只读取 `app/assets/` 下的素材；`assets-src/` 不参与打包，仅供再生成。
-- 素材重跑：`python tools/rebuild_sprites.py`（原图 → 抠图 → 归一化，单姿态成片落 `assets-src/sprites-poses/`，`drag.png` 同步进 `app/assets/sprites/`）。
-- 叫声重跑：`python tools/import_voice_sfx.py`（切片 → 音色 → 响度归一 → OGG，参数表驱动）。
+- 素材重跑：`python tools/sprites/rebuild_sprites.py`（原图 → 抠图 → 归一化，单姿态成片落 `assets-src/sprites-poses/`，`drag.png` 同步进 `app/assets/sprites/`）。
+- 叫声重跑：`python tools/audio/import_voice_sfx.py`（切片 → 音色 → 响度归一 → OGG，参数表驱动）。
 
 ## 许可证
 

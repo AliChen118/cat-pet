@@ -9,7 +9,7 @@ Zwicker 尖锐度(acum) / 温暖带(200–500Hz)占比 / 估算基频。
   1) 改素材前后做客观对比（尖锐度↓、重心↓、温暖带↑ 是「柔和化」的可验证指标）；
   2) 找出个别仍偏尖的条目，只针对它加参数。
 
-用法：python tools/analyze_meow_tone.py [--dir 目录] [--csv 输出.csv]
+用法：python tools/audio/analyze_meow_tone.py [--dir 目录] [--csv 输出.csv]
 """
 import argparse
 import glob

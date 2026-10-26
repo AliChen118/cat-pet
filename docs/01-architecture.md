@@ -113,10 +113,19 @@
 │   │   └── ai-secret.js    DPAPI 密钥加解密
 │   ├── assets/             运行期素材（sprites / audio / tray 图标）
 │   └── build/              打包资源（icon.ico / icon.png）
-├── assets-src/             素材源与中间产物（不打包）
+├── assets-src/             素材源与中间产物（不打包，raw/ 下含 generated/ 试生成图）
 ├── docs/                   本文档目录
-├── tools/                  素材管线、音频处理、逻辑测试、探针脚本
+├── tools/                  辅助脚本，按用途分层
+│   ├── _root.py            仓库根定位（各子目录脚本共用）
+│   ├── check/              回归与校验（test_logic / verify_asar）
+│   ├── probe/              实机探针（打包版 / 走跑 / 摇尾巴 / 抚摸 / 眨眼 / 取色）
+│   ├── sprites/            素材管线（抠图 / 归一化 / 接缝审计 / 预览）
+│   ├── audio/              音频管线（抓取 / 导入 / 音色 / 报告）
+│   └── legacy/             一次性历史脚本（只读留存）
+├── design/                 设计稿与验收图（preview/ 演示图、checks/ 对比图）
 ├── dist/                   构建产物（electron-builder 输出）
+├── archive/                本地归档（shots/ 截图、audio-history/ 音频报表，不入库）
+├── _backup/                可回滚快照（pose-orig、sfx/tone 精选前素材，不入库）
 └── .github/workflows/      CI：测试 → 构建 → 源码打包 → Release
 ```
 
@@ -126,7 +135,7 @@
 
 | 约束 | 说明 |
 |---|---|
-| `SPRITE_HALF_W = 253` | 出现在 `renderer.js` / `main.js` / `tools/sprite_bounds.py` **三处**，改素材宽度必须同步 |
+| `SPRITE_HALF_W = 253` | 出现在 `renderer.js` / `main.js` / `tools/sprites/sprite_bounds.py` **三处**，改素材宽度必须同步 |
 | 窗口与地面基线 | 精灵底边在 `y=470`、地面线 `GROUND=588`；气泡与特效几何一律由实测 `contentTop()` 推导，禁用绝对像素 |
 | 环境变量 | 从命令行跑 Electron/打包前必须 `env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS`，否则进程被当作纯 Node 运行、无窗口 |
 | 中文路径 | `@electron/asar`、部分 `loadFile` 场景对中文路径不稳；离线验证一律复制到 ASCII 临时目录 |

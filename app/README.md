@@ -376,12 +376,12 @@ app/                        # 应用源码（Electron）
 处理命令示例：
 
 ```bash
-python tools/extract_sprite.py  raw.png  cutout.png
-python tools/normalize_sprite.py cutout.png  ../assets-src/sprites-poses/idle.png
+python tools/sprites/extract_sprite.py  raw.png  cutout.png
+python tools/sprites/normalize_sprite.py cutout.png  ../assets-src/sprites-poses/idle.png
 
 # 序列帧：脚本按文件名排序，故须先把原始帧重命名成 walk_1..4 / run_1..4
 # （AI 原始文件名形如 Walkframe{one,four,three,two}，字典序为 four→one→three→two，顺序会错乱）
-python tools/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets-src/raw/frames/walk_2.png \
+python tools/sprites/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets-src/raw/frames/walk_2.png \
        ../assets-src/raw/frames/walk_3.png ../assets-src/raw/frames/walk_4.png \
        --outdir ../app/assets/sprites/frames --prefix walk_ --height 340
 ```
@@ -399,7 +399,7 @@ python tools/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets
 
 ## 七、已知限制与后续可扩展
 
-- 13 个姿态均为 4–6 帧序列 + 帧间 35% 交叉淡化，动作已较流畅；`drag` 仍是单帧静态图（被拎着不晃）。若想更细腻可继续补帧（管线已就绪：`tools/normalize_sequence.py` 支持整序列统一缩放与躯干核心对齐），注意包体与启动耗时随之上升。
+- 13 个姿态均为 4–6 帧序列 + 帧间 35% 交叉淡化，动作已较流畅；`drag` 仍是单帧静态图（被拎着不晃）。若想更细腻可继续补帧（管线已就绪：`tools/sprites/normalize_sequence.py` 支持整序列统一缩放与躯干核心对齐），注意包体与启动耗时随之上升。
 - 语音为本地内置素材（`assets/audio/meow/`，.ogg 优先、.wav 兜底），共 15 条精选叫声 + 2 条呼噜音轨；新增叫声同名放入 `assets/audio/meow/` 即可替换，无需改代码。
 - 说话气泡文案目前为内置中文短句，可扩展为随机句库。
 - 多显示器跨 DPI 拖动时透明窗口尺寸可能轻微漂移（已用 `enforceSize()` 守卫兜底，单屏无此问题）。

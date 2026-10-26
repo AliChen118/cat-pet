@@ -37,7 +37,10 @@ import soundfile as sf
 from scipy.signal import butter, sosfilt, resample_poly, lfilter
 
 SR = 44100
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 RAW = os.path.join(ROOT, 'assets-src', 'audio-raw')
 OUT = os.path.join(ROOT, 'app', 'assets', 'audio', 'meow')
 

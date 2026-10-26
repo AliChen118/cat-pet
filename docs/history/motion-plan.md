@@ -106,9 +106,9 @@ $btnCancel.addEventListener('click', () => { …api.saveConfig(groupPatchOf(reve
    - 入参：`image1` = 前一张帧、`image2` = 后一张帧（工具支持 1–3 张参考图）
    - `input_fidelity: "high"`
    - 提示词强调：`flat solid pure magenta background, no gradient, same chibi silver-shaded longhair kitten, same proportions/scale/facing, single cat centered, intermediate pose between the two reference frames`
-2. **抠图**：`tools/extract_sprite.py`（自动剔除水印；候选像素须与主体最大连通域保持距离）
-3. **序列归一化**：`tools/normalize_sequence.py` —— 全序列统一缩放 + 躯干 IoU 对齐，杜绝大小跳动与横向抖动
-4. **边界校验**：`tools/sprite_bounds.py` 确认全帧半宽 ≤ `SPRITE_HALF_W = 253`；超过则回退重生成该帧
+2. **抠图**：`tools/sprites/extract_sprite.py`（自动剔除水印；候选像素须与主体最大连通域保持距离）
+3. **序列归一化**：`tools/sprites/normalize_sequence.py` —— 全序列统一缩放 + 躯干 IoU 对齐，杜绝大小跳动与横向抖动
+4. **边界校验**：`tools/sprites/sprite_bounds.py` 确认全帧半宽 ≤ `SPRITE_HALF_W = 253`；超过则回退重生成该帧
 5. **更新 `CONTENT_TOP_FALLBACK`**：新序列内容顶边会变化（现多为 130，walk/run/tailwag/unhappy/drag 为 70），按 `sprite_bounds.py` 实测值更新
 6. **预览确认**：生成后先出「原帧 / 补间帧」对照预览图（gif 或拼图）给你过目，再入库
 
@@ -118,7 +118,7 @@ $btnCancel.addEventListener('click', () => { …api.saveConfig(groupPatchOf(reve
 |---|---|
 | `renderer.js` | `SPRITE_FILES` 各姿态帧数组扩到新张数；`SPRITE_FPS` 按上表翻倍 |
 | `engine/animator.js` | `CONTENT_TOP_FALLBACK` 更新；`FRAME_BLEND = 0.35` 保持不变（帧更密 + 淡化 = 更顺；若出现"糊"，降到 0.25） |
-| `tools/test_logic.js` | `EXPECTED` 帧清单 47 → 96，断言同步 |
+| `tools/check/test_logic.js` | `EXPECTED` 帧清单 47 → 96，断言同步 |
 | `cat-pet/README.md` | 帧数表、目录树（"13 个序列帧姿态，96 张帧"） |
 | 素材目录 | 顺带清理 8 张陈旧副本 `walk1-4.png` / `run1-4.png` |
 
@@ -243,7 +243,7 @@ $btnCancel.addEventListener('click', () => { …api.saveConfig(groupPatchOf(reve
 3. `renderer.js`：`SPRITE_FILES` / `SPRITE_FPS` 更新；`ACTIVITY` 改为等概率池
 4. `renderer.js`：`computeMods()` 移除全部尺寸形变 + 落地改位移下蹲
 5. `settings.html` / `settings.js` / `i18n.js`：应用/取消反馈交互
-6. `tools/test_logic.js`：帧清单 47 → 96、等概率分布断言、尺寸恒定断言、脏值确认流程断言
+6. `tools/check/test_logic.js`：帧清单 47 → 96、等概率分布断言、尺寸恒定断言、脏值确认流程断言
 7. 全量回归（目标 ≥150 断言，连续多轮无 flaky）+ 数值沙箱（等概率分布卡方检验）
 8. 实机冒烟 → 升版 **1.8.0** → 打包 portable + nsis → 更新 README 与项目记忆
 

@@ -6,7 +6,7 @@
 把同一句喵的新旧两版并排放，各带客观指标（尖锐度 / 3–5k 占比 / 谱重心），
 肉耳对照一遍就能定稿。
 
-用法：python tools/make_meow_ab.py [--old 旧素材目录]
+用法：python tools/audio/make_meow_ab.py [--old 旧素材目录]
 输出：assets-src/previews/meow-preview-ab.html
 """
 import base64
@@ -15,7 +15,10 @@ import glob
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 NEW = os.path.join(ROOT, 'app', 'assets', 'audio', 'meow')
 OUT = os.path.join(ROOT, 'assets', 'previews', 'meow-preview-ab.html')
 
@@ -43,7 +46,7 @@ def find_old():
 
 
 def load_csv(name):
-    p = os.path.join(ROOT, name)
+    p = os.path.join(ROOT, 'archive', 'audio-history', name)
     if not os.path.exists(p):
         return {}
     with open(p, encoding='utf-8-sig') as f:
@@ -196,7 +199,7 @@ TEMPLATE = r'''<!DOCTYPE html>
 <main>
 @@SECTIONS@@
 </main>
-<footer>柔化链：3.4kHz 削刺 + 5.6kHz 高频架衰减 + 320Hz 加暖 + 温和峰值压缩 + raise-cosine 起音。生成器 <code>tools/import_meows.py</code>。</footer>
+<footer>柔化链：3.4kHz 削刺 + 5.6kHz 高频架衰减 + 320Hz 加暖 + 温和峰值压缩 + raise-cosine 起音。生成器 <code>tools/audio/import_meows.py</code>。</footer>
 <audio id="au" preload="auto"></audio>
 <script>
 var OLD_SRC = {

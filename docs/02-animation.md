@@ -11,7 +11,7 @@
 | 地面线 | `GROUND = 588` | 阴影、落地判定、食碗、气泡尖角基准 |
 | 数量 | **15 姿态 / 51 帧** | 14 个序列姿态 + `drag` 单帧 |
 
-内容顶部（`contentTop`）不写死：`tools/sprite_bounds.py` 实测每帧内容顶边，生成 `engine/animator.js` 的 `CONTENT_TOP_FALLBACK` 表，运行时优先用实测值、缺失时回退该表。气泡与特效的纵向位置全靠它。
+内容顶部（`contentTop`）不写死：`tools/sprites/sprite_bounds.py` 实测每帧内容顶边，生成 `engine/animator.js` 的 `CONTENT_TOP_FALLBACK` 表，运行时优先用实测值、缺失时回退该表。气泡与特效的纵向位置全靠它。
 
 ---
 
@@ -104,7 +104,7 @@ blinkCfg = { active:[0,3], blinkFrame:2, meanGap: 60/blinkRate }
 
 **姿态缩放**：`POSE_SCALE = { unhappy: 0.84, bath: 0.87 }`——某些姿态的素材本身比例偏大/偏小，靠固定系数校回视觉一致。这是**兜底**手段：离散查表 + 帧级平滑，进出该姿态仍有一次约 0.35s 的尺寸过渡（看到的就是"缩一圈再涨回来"）。
 
-**姿态尺寸一致性（推荐做法：把比例烘焙进素材）**：`tailwag` 与 `pet` 都已从 `POSE_SCALE` 退役，改由 `tools/normalize_pose_size.py` 在素材层归一（锚点 `(256,470)`、原始帧备份 `_backup/pose-orig/`），运行期系数恒为 1，进出该姿态**没有任何尺寸过渡**。
+**姿态尺寸一致性（推荐做法：把比例烘焙进素材）**：`tailwag` 与 `pet` 都已从 `POSE_SCALE` 退役，改由 `tools/sprites/normalize_pose_size.py` 在素材层归一（锚点 `(256,470)`、原始帧备份 `_backup/pose-orig/`），运行期系数恒为 1，进出该姿态**没有任何尺寸过渡**。
 
 - `tailwag` 判据用**眼距**（两眼中点水平距）：眼睛是刚性特征，不受尾巴/姿态干扰。实测 `idle_1` = 95.9 px、`tailwag_1..4` = 103.1–103.6 px（组内差 0.6%），即摇尾巴素材整体比 idle 大 **7.5%**；归一系数 0.926–0.931。
 - `pet` 判据用**整幅 alpha 面积**（`--metric area`）并加 `--uniform`：抚摸帧基本闭眼（3 帧只有 1 帧测得到眼距），而整幅面积正是人眼判断「整体多大」的量。实测 idle 组均值 77789、`pet_1..3` 62574 / 61168 / 63225（仅为 idle 的 78–81%），组内系数 1.1092–1.1277 → 取统一系数 **1.1173**（帧间不抖动）。归一后：组均值与 idle 差 **+0.1%**，单帧 −1.8%~+1.5%。面积口径对高举的大尾巴敏感，**不要**用于 `tailwag`/`walk`/`run` 这类姿态。

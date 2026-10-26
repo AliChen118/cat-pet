@@ -1,5 +1,5 @@
 /* 打包版真机冒烟：连 CDP 读 canvas 尺寸 / 不透明像素 / lick 帧解码 / console 异常。
- * 用法：node tools/probe_packaged.js [port] [version]
+ * 用法：node tools/probe/probe_packaged.js [port] [version]
  * 前提：目标实例已带 --remote-debugging-port 启动。
  */
 const PORT = process.argv[2] || '9250';
@@ -98,7 +98,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(dec.every((s) => s === '512x512'), `lick_1..4 解码: ${dec.join(', ')}`);
 
   // 说明：renderer.js 的帧表/常量都在模块作用域内（未挂到 window），运行期读不到，
-  // 因此节奏常量由 tools/verify_asar.js 在包内容层面断言；这里只验运行期可见事实。
+  // 因此节奏常量由 tools/check/verify_asar.js 在包内容层面断言；这里只验运行期可见事实。
   const rt = await evalJS(`(() => {
     const c = document.querySelector('canvas');
     const r = c.getBoundingClientRect();

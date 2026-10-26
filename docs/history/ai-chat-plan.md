@@ -168,7 +168,7 @@ onAiNotice(cb)     // { code, message }   错误一次性气泡
 | `engine/config-schema.js` | 改 | ai 组 12 项，CONFIG_VERSION 6 |
 | `settings.js` | 改 | password / action 控件 |
 | `engine/i18n.js` | 改 | 中英文案约 26 条 |
-| `tools/test_logic.js` | 改 | 新增约 26 条断言（切句、队列、去重、限流、降级、schema、掩码） |
+| `tools/check/test_logic.js` | 改 | 新增约 26 条断言（切句、队列、去重、限流、降级、schema、掩码） |
 | `package.json` | 改 | 1.9.0 |
 
 ---

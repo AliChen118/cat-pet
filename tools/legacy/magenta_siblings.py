@@ -3,7 +3,7 @@
 """把同一姿态全部帧在「命中区域」裁剪并排，判断该区域在其它帧中的真实内容，
 从而确定正确填补方式（透明 or 皮毛）。
 
-用法: python tools/magenta_siblings.py <姿态> <bbox x0 y0 x1 y1> [score] [B-G]
+用法: python tools/legacy/magenta_siblings.py <姿态> <bbox x0 y0 x1 y1> [score] [B-G]
 """
 import os
 import sys

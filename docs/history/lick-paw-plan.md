@@ -6,7 +6,7 @@
 
 **拍板结果**：① F1 头未低下去，接受；② 6 fps，`lick_2` 加 75 ms 停留；③ 进食后 2 轮；④ 空闲 90–130 s 一次。
 
-> **节奏二次修订（2026-10-25 晚，已落地）**：虎哥反馈「整体偏快、主帧不够停」，遂把基础帧率 **6 → 5 fps**、主帧停留 **75 → 150 ms**。单轮 **0.742 → 0.950 s**，进食 2 轮 **1.48 → 1.90 s**。下文原始 6 fps 段落仅作决策留痕，**实际代码以 5 fps / 150 ms 为准**；`docs/02-animation.md` 与 `tools/test_logic.js` 已同步。
+> **节奏二次修订（2026-10-25 晚，已落地）**：虎哥反馈「整体偏快、主帧不够停」，遂把基础帧率 **6 → 5 fps**、主帧停留 **75 → 150 ms**。单轮 **0.742 → 0.950 s**，进食 2 轮 **1.48 → 1.90 s**。下文原始 6 fps 段落仅作决策留痕，**实际代码以 5 fps / 150 ms 为准**；`docs/02-animation.md` 与 `tools/check/test_logic.js` 已同步。
 
 **实测与方案的差异**：基线核心高度是 **331 px**（不是 322——322 是同批 96 帧版本的数值），因此 4 帧全部按 331 归一，`POSE_SCALE` **不需要新增条目**（`lick` 组核心 329–331，与 `idle` 差 ≤0.6%，走默认系数 1.0 即可）。
 
@@ -116,9 +116,9 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 - `docs/02-animation.md`：帧表加 `lick`（4 帧 / 8 fps / 0.500 s），姿态总数 14 → 15
 - `docs/03-behavior.md`：§决策优先级补「空闲舔爪」分支与参数
-- `tools/test_logic.js`：`EXPECTED` 加 `lick_1..4`；加断言「进食结束必进 lick」「冷却期内不触发」
+- `tools/check/test_logic.js`：`EXPECTED` 加 `lick_1..4`；加断言「进食结束必进 lick」「冷却期内不触发」
 - `tools/frame_audit_baseline.json`：加 `lick` count = 4
-- `tools/magenta_audit.py`：51 张精灵全扫
+- `tools/legacy/magenta_audit.py`：51 张精灵全扫
 - `app/README.md` / `docs/07-engineering.md`：帧数 47 → 51
 
 ---
@@ -141,7 +141,7 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 | `app/assets/sprites/frames/lick_1..4.png` | 新增 4 帧（512×512 RGBA） |
 | `app/engine/animator.js` | 新增 `play()` 的 `opts.hold` 逐帧停留；`CONTENT_TOP_FALLBACK` 补 `lick: 130` |
 | `app/renderer.js` | 帧表 / 帧率 / 常量 / `INTERRUPTIBLE` / `eat` 转场 / `states.lick` / `decide()` P9.5 / `cleanFactor()` / 动效分支 |
-| `tools/test_logic.js` | `EXPECTED` 补 4 帧 + 新增 10 条断言 |
+| `tools/check/test_logic.js` | `EXPECTED` 补 4 帧 + 新增 10 条断言 |
 | `docs/02-animation.md`、`docs/03-behavior.md`、`README.md`、`app/README.md` | 帧表、优先级、计数同步 |
 
 **素材实测**
@@ -160,8 +160,8 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 | 项 | 结果 |
 |---|---|
-| `node tools/test_logic.js` | **全部断言通过**（含「出现顺序 eat@51 → lick@404」的行为验证） |
-| `python tools/magenta_audit.py app/assets/sprites` | 52 个文件 **0 命中 / 0 超标** |
+| `node tools/check/test_logic.js` | **全部断言通过**（含「出现顺序 eat@51 → lick@404」的行为验证） |
+| `python tools/legacy/magenta_audit.py app/assets/sprites` | 52 个文件 **0 命中 / 0 超标** |
 | 精灵总数 | 47 → **51**（14 个序列姿态 + drag，共 15 姿态） |
 | 真机启动（Electron 31.7.7） | canvas 640×640、画布不透明像素 64904、`lick_1..4` 解码均 512×512、**无 console 异常** |
 
@@ -194,7 +194,7 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 **需求**：走/跑播放不得过短，至少完整 2 个循环；循环衔接自然、首尾对齐；不跳帧不停顿。
 
-**先量素材**（`tools/loop_seam_audit.py`）：接缝并不比普通相邻帧更陡，问题出在「播放被随机距离截断」。
+**先量素材**（`tools/sprites/loop_seam_audit.py`）：接缝并不比普通相邻帧更陡，问题出在「播放被随机距离截断」。
 
 | 姿态 | 普通相邻帧 IoU | 接缝 `末→首` IoU | 判定 |
 |---|---|---|---|
@@ -214,7 +214,7 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 **回归**：新增 12 条断言（帧率/轮数/门禁/边界收尾/插值排除/步速反算/跑速下限/贴脸跳过/animator 轮数单测 + 40 s 自由漫游逐段校验「≥2 轮、收在首帧、帧序不跳」）。全量 **100% 通过**，连跑 3 次稳定。另把「摇尾巴」抽样窗口 150→230 s（走/跑变长后决策次数变少，原窗口偶发漏抽翻红）。
 
-**真机**（打包版，`tools/probe_locomotion.js` 钩 `Animator.prototype.draw`）：120 s 采样 → walk 9 段（4 段满 2 轮 / 5 段贴脸跳过）、run 4 段全部满 2 轮，帧序无跳变、无卡死段。
+**真机**（打包版，`tools/probe/probe_locomotion.js` 钩 `Animator.prototype.draw`）：120 s 采样 → walk 9 段（4 段满 2 轮 / 5 段贴脸跳过）、run 4 段全部满 2 轮，帧序无跳变、无卡死段。
 
 ---
 
@@ -242,7 +242,7 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 眼距结论：摇尾巴素材整体比 idle 大 **7.5%**（`0.85` 属于过度收缩，脸反而比 idle 小 8.6%，同时也解释了"缩一圈"的另一种成因）。逐帧系数 0.9258 / 0.9309 / 0.9310 / 0.9294，锚点 (256,470) 保脚底贴地，原始帧备份 `_backup/pose-orig/`。归一后复测眼距 96.1–97.1（与基准差 0.8%）。
 
-改造后 `POSE_SCALE = { pet: 1.08, unhappy: 0.84, bath: 0.87 }`，`tailwag` 运行期系数恒为 1，进出该状态**没有任何尺寸过渡**。工具：`tools/normalize_pose_size.py <pose> --ref idle_1 [--metric eye|torso] [--dry]`。
+改造后 `POSE_SCALE = { pet: 1.08, unhappy: 0.84, bath: 0.87 }`，`tailwag` 运行期系数恒为 1，进出该状态**没有任何尺寸过渡**。工具：`tools/sprites/normalize_pose_size.py <pose> --ref idle_1 [--metric eye|torso] [--dry]`。
 
 > 遗留：`pet / unhappy / bath` 仍在 `POSE_SCALE` 里（闭眼/侧脸帧测不到眼距）。按眼距可测帧估算，理论系数应为 `pet≈1.05`、`unhappy≈0.90`、`bath≈0.94`，比现值均偏保守 4–6%。若要彻底消除这三处的过渡，可用同一支工具烘焙。
 
@@ -277,10 +277,10 @@ if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()
 
 **改造**：
 
-1. `python tools/normalize_pose_size.py pet --ref idle --metric area --uniform`：三帧统一放大 1.1173（锚点 256,470），原始帧备份 `_backup/pose-orig/`。归一后组均值与 idle 差 **+0.1%**，单帧 −1.8%~+1.5%。
+1. `python tools/sprites/normalize_pose_size.py pet --ref idle --metric area --uniform`：三帧统一放大 1.1173（锚点 256,470），原始帧备份 `_backup/pose-orig/`。归一后组均值与 idle 差 **+0.1%**，单帧 −1.8%~+1.5%。
 2. `POSE_SCALE` 删除 `pet` → `{ unhappy: 0.84, bath: 0.87 }`。运行期系数恒为 1，抚摸 ↔ idle 之间**不存在任何尺寸过渡**（不是"更平滑"，而是根本没有缩放量）。
 3. 工具升级：`--metric area`（整幅面积，`--uniform` 配套）、`--ref idle`（无编号时取该姿态全帧均值，抹掉基准自身的帧间波动）。
 
-**回归**：新增 4s 段 4 条断言（`POSE_SCALE` 不含 pet / 抚摸段体形系数恒为 1 / 切回 idle 衔接处差 0 / idle 段恒为 1）；`verify_asar` 增 2 条；新增真机 `tools/probe_pet.js`（4 次抚摸，校验段内系数恒 1、切回衔接差 0、帧序推进）。全量 **440 项通过**，连跑 4 次稳定。
+**回归**：新增 4s 段 4 条断言（`POSE_SCALE` 不含 pet / 抚摸段体形系数恒为 1 / 切回 idle 衔接处差 0 / idle 段恒为 1）；`verify_asar` 增 2 条；新增真机 `tools/probe/probe_pet.js`（4 次抚摸，校验段内系数恒 1、切回衔接差 0、帧序推进）。全量 **440 项通过**，连跑 4 次稳定。
 
 **顺带修测试稳定性**：1.1.6 把 idle 权重调高后，4p（走/跑）与 4q（摇尾巴）的随机抽样次数变少，出现偶发翻红——其中"31 帧/1 轮"的异常段其实是**紧急需求打断**（`walk` 在 `INTERRUPTIBLE` 里），不是缺陷。现改为：只对"正常退出（下一步回 idle）"的段做「≥2 轮 + 收在循环首帧」强断言；摇尾巴随机未命中降级为 `[warn]`（触发覆盖由 phase4 的 230 s 窗口兜底），采样窗口 2400→3600 帧、3000→6000 帧，`activityLevel` 提到 `high`。

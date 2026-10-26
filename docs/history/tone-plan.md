@@ -2,7 +2,7 @@
 
 > 目标：29 条语音素材整体呈现**可爱、温柔**的特质，去掉尖锐/刺耳/毛刺感，
 > 同时**保住真实录音的自然细节**（气声、共振峰、颤音、呼噜），不做降噪、不加混响、不做机械式均衡。
-> 基线：语音阶段 2 的 29 条 CC0 真实录音（OGG，258 KB）。加工脚本：`tools/import_meows.py`。
+> 基线：语音阶段 2 的 29 条 CC0 真实录音（OGG，258 KB）。加工脚本：`tools/audio/import_meows.py`。
 
 ---
 
@@ -137,7 +137,7 @@
 | 1–3 kHz 存在感保留 | — | **平均 97%**（最差 77%） | 未闷 |
 | 素材总体积 | 269 KB | **258 KB** | −11 KB |
 
-**约束复核**：29 条全部 OGG / 44.1 kHz / 单声道；`sys ≤ 0.35s`、`urgent ≤ 0.45s`、其余 `≤ 1.30s` 全部满足；`tools/test_logic.js` 断言全绿。
+**约束复核**：29 条全部 OGG / 44.1 kHz / 单声道；`sys ≤ 0.35s`、`urgent ≤ 0.45s`、其余 `≤ 1.30s` 全部满足；`tools/check/test_logic.js` 断言全绿。
 
 ---
 
@@ -145,16 +145,16 @@
 
 ```bash
 # 重生成全部素材（改 TARGETS / RATE_ADJUST / TONE_PER 后执行）
-python tools/import_meows.py
+python tools/audio/import_meows.py
 
 # 客观测量（前后对比；--csv 输出明细）
-python tools/analyze_meow_tone.py --csv _after_meow.csv
+python tools/audio/analyze_meow_tone.py --csv _after_meow.csv
 
 # 试听页（单文件自包含，29 条内嵌）
-python tools/make_meow_preview.py
+python tools/audio/make_meow_preview.py
 
 # A/B 对比页（旧素材 vs 新素材，含指标对照）
-python tools/make_meow_ab.py
+python tools/audio/make_meow_ab.py
 ```
 
 **想更柔**：把 `TONE_PER` 里对应条目的 `harsh` 再减 1–2 dB（不要超过净 −8 dB，否则"喵"会变成"呜"）。

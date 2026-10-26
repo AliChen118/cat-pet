@@ -13,7 +13,7 @@ sprite_bounds.py — 测量精灵素材的内容边界，生成 animator.js 的 
 姿态级取值：同一姿态的多帧取“最高帧”（y 最小），保证同一姿态下气泡不抖动。
 
 用法：
-    python tools/sprite_bounds.py
+    python tools/sprites/sprite_bounds.py
 """
 
 import os
@@ -26,7 +26,10 @@ try:
 except ImportError:
     sys.exit('需要 Pillow 与 numpy：pip install Pillow numpy')
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 SPRITES = os.path.join(ROOT, 'app', 'assets', 'sprites')
 ALPHA_THRESHOLD = 8          # 与 animator.js 中 measureContentTop 保持一致
 ANCHOR_X = 256               # 躯干中心锚点（renderer.js 以此为 pet.x）

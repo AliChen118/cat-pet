@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """循环接缝审计：逐帧量 alpha 掩膜 IoU / 质心位移 / 面积差，重点看「末帧 → 首帧」这一刀。
 
-用法：python tools/loop_seam_audit.py [姿态名 ...]
+用法：python tools/sprites/loop_seam_audit.py [姿态名 ...]
      默认审计全部多帧循环姿态（walk run idle eat play bath tailwag ... 中实际存在的）。
 
 判读：接缝 IoU 只要与同组普通相邻帧同量级，就说明循环衔接不比正常步态更陡。
@@ -11,7 +11,10 @@ import sys
 import numpy as np
 from PIL import Image
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 FRAMES = os.path.join(ROOT, 'app', 'assets', 'sprites', 'frames')
 
 CYCLE_POSES = ['walk', 'run', 'idle', 'eat', 'play', 'bath', 'tailwag', 'sleep', 'meow', 'lick', 'pet', 'stretch']

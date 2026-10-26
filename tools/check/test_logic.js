@@ -7,7 +7,7 @@
  *      config-changed 广播，验证无运行时错误、姿态渲染、持久化、菜单、
  *      体型边界、语言切换、通知与设置入口。
  *
- * 运行： node tools/test_logic.js
+ * 运行： node tools/check/test_logic.js
  */
 'use strict';
 
@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const ROOT = path.resolve(__dirname, '..', 'app');
+const ROOT = path.resolve(__dirname, '..', '..', 'app');
 const Schema = require(path.join(ROOT, 'engine', 'config-schema.js'));
 const I18N = require(path.join(ROOT, 'engine', 'i18n.js'));
 const NP = require(path.join(ROOT, 'engine', 'needs-profile.js'));
@@ -2229,14 +2229,24 @@ async function run() {
       const notSeq = [];
       const excused = [];
       let normalCnt = 0;
+      let skipCnt = 0;
+      let cutCnt = 0;
+      // 段的有效性口径（三条都可能「看起来不对但合法」，必须逐条剔除，否则偶发翻红）：
+      //  1) 被紧急需求打断 → 设计允许的可打断性，不计入；
+      //  2) 窗口尾部截断（后面没有帧了）→ 不是它自己退出的，无法判断是否收势；
+      //  3) 贴脸目标（span < WALK_SKIP_DIST）→ walkSkip 分支不播步态，1–3 帧就转 next，
+      //     这条路径天然是 0 轮，不能按「至少 2 轮」要求。
       for (let ei = 0; ei < eps.length; ei++) {
         const e = eps[ei];
         const last = e[e.length - 1];
-        // 正常退出（下一步回 idle）才要求「≥2 轮 + 收在首帧」；
-        // 被紧急需求（urgent 中断）打断的段不计入——那是设计允许的可打断性
         const nxt = poseLog[epsEnd[ei] + 1];
-        const normal = !nxt || nxt.name === 'idle';
-        if (!normal) excused.push(nxt.name);
+        const cut = !nxt;
+        const interrupted = !!nxt && nxt.name !== 'idle';
+        const skipWalk = !cut && !interrupted && pose === 'walk' && last.laps === 0;
+        const normal = !cut && !interrupted && !skipWalk;
+        if (interrupted) excused.push(nxt.name);
+        if (cut) cutCnt++;
+        if (skipWalk) skipCnt++;
         if (normal) normalCnt++;
         if (normal && last.laps < 2) short.push(`${e.length}帧/${last.laps}轮`);
         if (normal && last.idx !== 0) notBoundary.push(`末帧${last.idx + 1}`);
@@ -2246,8 +2256,11 @@ async function run() {
           if (b !== a && b !== (a + 1) % 4) { notSeq.push(`${a + 1}→${b + 1}`); break; }
         }
       }
+      const tail = (cutCnt ? `，尾部截断 ${cutCnt} 段` : '')
+        + (skipCnt ? `，贴脸短距 ${skipCnt} 段` : '')
+        + (excused.length ? `，被打断 ${excused.length} 段` : '');
       ok(normalCnt > 0,
-        `${pose}: 60 s 内触发 ${eps.length} 段（正常退出 ${normalCnt} 段${excused.length ? '，被打断 ' + excused.length + ' 段' : ''}）`);
+        `${pose}: 60 s 内触发 ${eps.length} 段（可判定 ${normalCnt} 段${tail}）`);
       ok(short.length === 0,
         `${pose}: 每段至少 2 个完整循环${short.length ? '，不足的段 ' + short.slice(0, 3).join(' / ') : ''}`);
       ok(notBoundary.length === 0,
@@ -2267,7 +2280,7 @@ async function run() {
     ok(/NO_FRAME_BLEND\s*=\s*new Set\([^)]*'tailwag'[^)]*\)/.test(animSrc3),
       '摇尾巴不参与帧间插值: 相邻帧 IoU 0.76–0.92，叠加会出现两条尾巴');
 
-    // 比例已烘焙进素材（tools/normalize_pose_size.py 眼距口径 k≈0.93），运行时系数必须恒为 1
+    // 比例已烘焙进素材（tools/sprites/normalize_pose_size.py 眼距口径 k≈0.93），运行时系数必须恒为 1
     const psrc = (rsrc3.match(/const POSE_SCALE = \{([^}]*)\}/) || [])[1];
     ok(psrc != null && !/tailwag/.test(psrc),
       `摇尾巴不再走运行时姿态缩放: POSE_SCALE = {${(psrc || '').trim()}}（切进/切出体型零过渡）`);
@@ -2325,14 +2338,20 @@ async function run() {
       } else curSeg = null;
     }
     // 抽样本身是随机的：抽不到不算失败（触发覆盖由 phase4 的 230 s 窗口断言兜底），
-    // 但只要抽到，段级时序就必须完全正确
+    // 但只要抽到，段级时序就必须完全正确。
+    // 末段可能被 6000 帧窗口截断（后面没有帧了，不是它自己退出的），不参与收势判定。
+    const tailCut = wagLog.length > 0 && wagLog[wagLog.length - 1].name === 'tailwag';
+    const closed = tailCut ? segs.slice(0, -1) : segs;
     if (segs.length === 0) {
       console.log('[warn] 摇尾巴: 本次抽样未命中（随机触发，覆盖由 phase4 长窗口断言兜底）');
+    } else if (closed.length === 0) {
+      console.log(`[warn] 摇尾巴: 本次抽样只命中 ${segs.length} 段且被窗口截断，收势判定跳过`);
     } else {
-      const notSeam = segs.filter((s2) => s2[s2.length - 1].idx !== 0).length;
-      const wagCycles = segs.map((s2) => (s2[s2.length - 1].clock - s2[0].clock) / (4 / 7));
+      const notSeam = closed.filter((s2) => s2[s2.length - 1].idx !== 0).length;
+      const wagCycles = closed.map((s2) => (s2[s2.length - 1].clock - s2[0].clock) / (4 / 7));
       ok(notSeam === 0,
-        `摇尾巴: ${segs.length} 段全部收在循环首帧（尾部姿态一致）${notSeam ? '，例外 ' + notSeam + ' 段' : ''}`);
+        `摇尾巴: ${closed.length} 段全部收在循环首帧（尾部姿态一致）${notSeam ? '，例外 ' + notSeam + ' 段' : ''}`
+        + (tailCut ? '（末段被窗口截断，不计）' : ''));
       ok(Math.min(...wagCycles) >= 2,
         `摇尾巴: 每段至少 2 个循环（最少 ${Math.min(...wagCycles).toFixed(1)} 轮）`);
     }

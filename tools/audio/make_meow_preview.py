@@ -10,7 +10,7 @@
     - 任意打开方式（file:// / http / iframe / 拷贝分享）都能播；
     - 无需 extern 目录，单文件可独立分发。
 
-用法：python tools/make_meow_preview.py
+用法：python tools/audio/make_meow_preview.py
 输出：assets-src/previews/meow-preview.html
 """
 import base64
@@ -20,8 +20,11 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))   # tools/
+sys.path.insert(0, HERE)                    # 同目录兄弟模块
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 
 spec = importlib.util.spec_from_file_location('im', os.path.join(HERE, 'import_meows.py'))
 im = importlib.util.module_from_spec(spec)

@@ -3,7 +3,7 @@
 """修复前后对照：以「修复前」的命中包围盒为准，裁同一区域，左右并排。
 
 透明区用洋红底衬出，便于判断填补是否合理（应为透明缝隙）。
-用法: python tools/magenta_beforeafter.py <before目录> <after目录> <输出png> [单列|双col]"
+用法: python tools/legacy/magenta_beforeafter.py <before目录> <after目录> <输出png> [单列|双col]"
 """
 import os
 import sys

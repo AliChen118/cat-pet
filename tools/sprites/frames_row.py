@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """把某姿态全部帧整帧并排（洋红底衬出透明），用于判断姿态结构与透明区。
 
-用法: python tools/frames_row.py <姿态> [splitY]   splitY>0 时只裁下半部分以下
+用法: python tools/sprites/frames_row.py <姿态> [splitY]   splitY>0 时只裁下半部分以下
 """
 import os
 import sys

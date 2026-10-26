@@ -17,9 +17,9 @@
 「身体部件／轮廓交界处露出的洋红背景缝隙」，均匀应以**透明**填补（相邻帧同位置即透明）。
 
 用法：
-    python tools/magenta_audit.py <目录...>                    # 只审计
-    python tools/magenta_audit.py <目录...> --fix              # 审计并清除（原文件先备份）
-    python tools/magenta_audit.py <目录...> --fix --inplace     # 不备份（谨慎）
+    python tools/legacy/magenta_audit.py <目录...>                    # 只审计
+    python tools/legacy/magenta_audit.py <目录...> --fix              # 审计并清除（原文件先备份）
+    python tools/legacy/magenta_audit.py <目录...> --fix --inplace     # 不备份（谨慎）
 """
 import argparse
 import os

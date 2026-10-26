@@ -11,11 +11,15 @@ assets-src/previews/
 assets-src/style-options/
 
 # 本地产物与归档
+# archive/ 下含 shots/（验收截图）、audio-history/（音频报表）、dist-legacy/（旧产物）
 archive/
 _backup/
-_shots/
 _purge.py
 .workbuddy/
+
+# Python 脚本运行残留
+__pycache__/
+*.pyc
 
 # 日志与临时文件
 *.log

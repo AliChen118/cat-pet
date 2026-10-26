@@ -14,10 +14,12 @@ import sys
 import numpy as np
 import soundfile as sf
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # 同目录兄弟模块
 from analyze_meow_tone import measure  # noqa: E402
+from _root import find_root  # noqa: E402
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = find_root()
 RAW = os.path.join(ROOT, 'assets-src', 'audio-raw')
 
 

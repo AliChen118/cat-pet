@@ -15,18 +15,22 @@
 不动，脚底不上浮、躯干不左右偏。
 
 用法：
-  python tools/normalize_pose_size.py tailwag --ref idle_1 [--dry]
-  python tools/normalize_pose_size.py tailwag --ref idle_1 --metric torso
+  python tools/sprites/normalize_pose_size.py tailwag --ref idle_1 [--dry]
+  python tools/sprites/normalize_pose_size.py tailwag --ref idle_1 --metric torso
 """
 import argparse
 import os
 import shutil
+import sys
 
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 FRAMES = os.path.join(ROOT, 'app', 'assets', 'sprites', 'frames')
 BACKUP = os.path.join(ROOT, '_backup', 'pose-orig')
 

@@ -5,7 +5,7 @@
   1) voice-sfx-report.md                音效清单 + 映射关系 + 来源许可（文本交付）
   2) assets-src/previews/cat-sfx-preview.html  单文件自包含试听页（base64 内嵌，双击即听）
 
-数据单一来源：_voice_manifest.json（由 tools/import_voice_sfx.py 生成）
+数据单一来源：_voice_manifest.json（由 tools/audio/import_voice_sfx.py 生成）
 """
 import base64
 import csv
@@ -13,8 +13,11 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST = os.path.join(ROOT, '_voice_manifest.json')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
+MANIFEST = os.path.join(ROOT, 'archive', 'audio-history', '_voice_manifest.json')
 MEOW_DIR = os.path.join(ROOT, 'app', 'assets', 'audio', 'meow')
 OUT_MD = os.path.join(ROOT, 'voice-sfx-report.md')
 OUT_HTML = os.path.join(ROOT, 'assets', 'previews', 'cat-sfx-preview.html')
@@ -95,14 +98,14 @@ def main():
         p['n'] += 1
     packs = sorted(packs.values(), key=lambda p: (-p['n'], p['author']))
 
-    old = load_metrics(os.path.join(ROOT, '_after_meow.csv'))
-    new = load_metrics(os.path.join(ROOT, '_sfx_new.csv'))
+    old = load_metrics(os.path.join(ROOT, 'archive', 'audio-history', '_after_meow.csv'))
+    new = load_metrics(os.path.join(ROOT, 'archive', 'audio-history', '_sfx_new.csv'))
 
     # ─────────────────────────── markdown ───────────────────────────
     L = []
     add = L.append
     add('# 猫叫音效素材：抓取 · 加工 · 分配报告\n')
-    add('> 数据来源：`_voice_manifest.json`（由 `tools/import_voice_sfx.py` 生成）；'
+    add('> 数据来源：`_voice_manifest.json`（由 `tools/audio/import_voice_sfx.py` 生成）；'
         '素材目录 `app/assets/audio/meow/`。\n')
 
     add('## 一、结论\n')
@@ -130,7 +133,7 @@ def main():
     add('| pixabay.com / cdn.pixabay.com | ❌ 403 | 反爬拦截 |')
     add('| soundbible.com | ❌ 000 | 不可达 |')
     add('')
-    add('**抓取实现**：`tools/fetch_cat_sfx.py`（urllib + 正则解析，无浏览器依赖）。'
+    add('**抓取实现**：`tools/audio/fetch_cat_sfx.py`（urllib + 正则解析，无浏览器依赖）。'
         'Freesound 侧只取 **CC0 过滤 + 时长 ≤9s** 的结果，只下载 preview 的 ogg；'
         'OGA 侧直接拿原始 wav/ogg。全部素材落 `app/assets-src/audio-raw/`（**不打包**，仅作再生成输入）。\n')
     add('**若抓不到时的替代方案与依赖**（已内置降级，便于换机/换网复跑）：')
@@ -196,10 +199,10 @@ def main():
 
     add('## 七、验收与回滚\n')
     add('1. 试听：打开 `assets-src/previews/cat-sfx-preview.html`（base64 内嵌，双击即响，可按类型筛选/串播）。')
-    add('2. 回归：`node tools/test_logic.js` —— 全部断言通过（含 12 情境、精选 16 条与勾选清单逐条一致、'
+    add('2. 回归：`node tools/check/test_logic.js` —— 全部断言通过（含 12 情境、精选 16 条与勾选清单逐条一致、'
         '素材目录无未勾选残留、呼噜≤3.5s、呼噜铺底不受全局节流影响、voiceVolume 音量链路）。')
-    add('3. 重生成：`python tools/fetch_cat_sfx.py` → `python tools/import_voice_sfx.py` → '
-        '`python tools/make_sfx_report.py`（改一行切片/变速即可重跑）。')
+    add('3. 重生成：`python tools/audio/fetch_cat_sfx.py` → `python tools/audio/import_voice_sfx.py` → '
+        '`python tools/audio/make_sfx_report.py`（改一行切片/变速即可重跑）。')
     add('4. 回滚：`cp -r _backup/sfx-pre_20261017-110111/meow/* app/assets/audio/meow/` '
         '并把 `engine/voice.js` 的 `purr/purrSleep` 两行与 renderer 两处调用移除。')
     add('')
@@ -244,7 +247,7 @@ def main():
     a('# 音频素材来源登记（CREDITS）\n')
     a('## 结论\n')
     a(f'当前打包的 **{len(rows)} 条**情境素材全部为 **CC0 / CC-BY 真实猫叫录音**（无程序化占位音、无来源不明素材），')
-    a('抓取日期 2026-10-17，抓取脚本 `tools/fetch_cat_sfx.py`，加工脚本 `tools/import_voice_sfx.py`。')
+    a('抓取日期 2026-10-17，抓取脚本 `tools/audio/fetch_cat_sfx.py`，加工脚本 `tools/audio/import_voice_sfx.py`。')
     a('CC-BY 条目已在本文件署名；CC0 无需署名，仍完整登记以便追溯。\n')
     a('原始录音留存于 `assets-src/audio-raw/`（已在 `package.json` 的 `build.files` 中排除，不随包分发）。\n')
     a('## 一、来源\n')
@@ -261,10 +264,10 @@ def main():
     a('')
     a('## 二、加工链（可复跑）\n')
     a('```')
-    a('抓取   tools/fetch_cat_sfx.py      OGA 直链 + Freesound preview（CC0 过滤 + ≤9s）')
-    a('加工   tools/import_voice_sfx.py   切片→裁静音→90Hz 高通→变速→4 段 EQ→压缩→柔性起落→响度归一→OGG')
+    a('抓取   tools/audio/fetch_cat_sfx.py      OGA 直链 + Freesound preview（CC0 过滤 + ≤9s）')
+    a('加工   tools/audio/import_voice_sfx.py   切片→裁静音→90Hz 高通→变速→4 段 EQ→压缩→柔性起落→响度归一→OGG')
     a('呼噜   (同脚本 loop 通路)          28Hz 高通→呼噜专用 EQ→循环接缝交叉淡化→响度归一')
-    a('交付   tools/make_sfx_report.py    生成 voice-sfx-report.md / 试听页 / 本文件')
+    a('交付   tools/audio/make_sfx_report.py    生成 voice-sfx-report.md / 试听页 / 本文件')
     a('```')
     a('')
     a('统一音色曲线：320Hz 低架 +2.6dB（暖）→ 900Hz +1.2dB（实体）→ 3.4kHz −3.4dB（削刺）→ '
@@ -282,8 +285,8 @@ def main():
     a('## 四、合规要求\n')
     a('1. 新增素材必须是 **CC0 / CC-BY**（CC-BY 需在本文件补作者与链接），禁用来源不明素材。')
     a('2. 时长：普通 0.4–1.3s，呼噜 ≤3.5s（loop）；44.1kHz 单声道 OGG。危急/系统音情境已按用户精选下线，恢复前不得重新引入目录。')
-    a('3. 增删变体只改 `engine/voice.js` 的 `SPEC.files` + `tools/import_voice_sfx.py` 的 `CUTS`，'
-      '`tools/test_logic.js` 会校验素材存在性与时长上限，漏放即 FAIL。')
+    a('3. 增删变体只改 `engine/voice.js` 的 `SPEC.files` + `tools/audio/import_voice_sfx.py` 的 `CUTS`，'
+      '`tools/check/test_logic.js` 会校验素材存在性与时长上限，漏放即 FAIL。')
     with open(OUT_CREDITS, 'w', encoding='utf-8') as f:
         f.write('\n'.join(C) + '\n')
     print('credits ->', OUT_CREDITS)

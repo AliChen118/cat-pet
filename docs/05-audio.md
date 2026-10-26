@@ -102,7 +102,7 @@ need.<stat>.<tier>:
 
 ## 五、音色处理链
 
-所有素材走同一条链，`tools/import_voice_sfx.py` 表驱动（`CUTS` 改一行即可重生成）：
+所有素材走同一条链，`tools/audio/import_voice_sfx.py` 表驱动（`CUTS` 改一行即可重生成）：
 
 ```
 源 WAV/OGG → 单声道 44.1k → 切片 → 裁静音（留 10ms 前导）
@@ -152,15 +152,15 @@ need.<stat>.<tier>:
 
 ```bash
 # 抓取源素材（OpenGameArt 直链 + Freesound preview，免登录）
-python tools/fetch_cat_sfx.py
+python tools/audio/fetch_cat_sfx.py
 # 切片 → 音色 → 归一 → OGG（改 CUTS 一行即重生成）
-python tools/import_voice_sfx.py
+python tools/audio/import_voice_sfx.py
 # 交付清单
-python tools/make_sfx_report.py
+python tools/audio/make_sfx_report.py
 # 客观音色测量（--csv 输出明细）
-python tools/analyze_meow_tone.py --csv _after_meow.csv
+python tools/audio/analyze_meow_tone.py --csv _after_meow.csv
 # 试听页 / A-B 对比页（单文件内嵌，双击即响）
-python tools/make_meow_preview.py && python tools/make_meow_ab.py
+python tools/audio/make_meow_preview.py && python tools/audio/make_meow_ab.py
 ```
 
 **回滚**：`_backup/tone-pre_<时间戳>/meow/` 是柔化前完整素材，整目录覆盖即可；精选前的 31 条在 `_backup/sfx-select_<时间戳>/`。

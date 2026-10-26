@@ -7,7 +7,10 @@ import shutil
 import subprocess
 import sys
 
-ROOT = r"E:/AI Work/桌面宠物"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 SRC = os.path.join(ROOT, "assets-src")
 RAW_POSES = os.path.join(SRC, "raw", "poses")
 RAW_FRAMES = os.path.join(SRC, "raw", "frames")
@@ -73,8 +76,8 @@ def main():
     os.makedirs(POSES_OUT, exist_ok=True)
     for name, src in POSES.items():
         ext = os.path.join(TMP, name + ".png")
-        run([PY, "tools/extract_sprite.py", os.path.join(RAW_POSES, src), ext])
-        run([PY, "tools/normalize_sprite.py", ext, os.path.join(POSES_OUT, name + ".png")])
+        run([PY, "tools/sprites/extract_sprite.py", os.path.join(RAW_POSES, src), ext])
+        run([PY, "tools/sprites/normalize_sprite.py", ext, os.path.join(POSES_OUT, name + ".png")])
     shutil.copyfile(os.path.join(POSES_OUT, "drag.png"), os.path.join(SPRITES, "drag.png"))
     print(">> drag.png 已同步到运行期素材目录")
 
@@ -84,9 +87,9 @@ def main():
         for i, f in enumerate(files, 1):
             ext = os.path.join(TMP, f"{prefix}_{i}.png")
             shutil.copyfile(os.path.join(RAW_FRAMES, f), ext)
-            run([PY, "tools/extract_sprite.py", ext, ext])
+            run([PY, "tools/sprites/extract_sprite.py", ext, ext])
             tmp_files.append(ext)
-        run([PY, "tools/normalize_sequence.py", *tmp_files,
+        run([PY, "tools/sprites/normalize_sequence.py", *tmp_files,
              "--outdir", os.path.join(SPRITES, "frames"), "--prefix", prefix])
 
     print("\n[done] 全部素材已重新生成")

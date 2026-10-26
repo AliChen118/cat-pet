@@ -2,7 +2,7 @@
  *   ① 抚摸段内姿态缩放系数（mods.scaleMul = poseCur）恒为 1 —— 不再有 1.08 的运行时补偿
  *   ② 抚摸结束切回 idle 的那一帧与抚摸末帧系数相同（无尺寸跳变）
  *   ③ 抚摸段内帧序 1→2→3 正常推进（不卡帧）
- * 用法：node tools/probe_pet.js [port] [抚摸次数]
+ * 用法：node tools/probe/probe_pet.js [port] [抚摸次数]
  * 前提：目标实例已带 --remote-debugging-port 启动，且与启动放在同一次命令里。
  */
 const PORT = process.argv[2] || '9290';

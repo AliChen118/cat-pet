@@ -19,8 +19,8 @@ fetch_cat_sfx.py — 从 CC0 音效站抓取候选猫叫素材（只下载，不
   assets-src/audio-raw/_sources.json             抓取清单（路径/来源/许可/时长/标签）
 
 用法：
-  python tools/fetch_cat_sfx.py              # 抓取全部标签
-  python tools/fetch_cat_sfx.py --only purr  # 只抓某标签
+  python tools/audio/fetch_cat_sfx.py              # 抓取全部标签
+  python tools/audio/fetch_cat_sfx.py --only purr  # 只抓某标签
 """
 import argparse
 import json
@@ -31,7 +31,10 @@ import time
 import urllib.parse
 import urllib.request
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/
+from _root import find_root  # noqa: E402
+
+ROOT = find_root()
 RAW = os.path.join(ROOT, 'assets-src', 'audio-raw')
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
 MAX_DUR = 9.0          # 原始素材时长上限（秒）

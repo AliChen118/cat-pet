@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """逐个命中文件输出「原图 | 高亮」对照裁剪图，便于人工判读。
 
-用法: python tools/magenta_pairs.py <文件...> <score阈值> <B-G阈值>
+用法: python tools/legacy/magenta_pairs.py <文件...> <score阈值> <B-G阈值>
 """
 import os
 import sys

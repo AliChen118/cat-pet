@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node ../tools/test_logic.js",
+    "test": "node ../tools/check/test_logic.js",
     "dist": "electron-builder --win portable nsis",
     "dist:win": "electron-builder --win portable nsis",
     "dist:linux": "electron-builder --linux AppImage",

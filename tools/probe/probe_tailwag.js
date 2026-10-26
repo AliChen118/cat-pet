@@ -2,7 +2,7 @@
  *   ① 姿态缩放系数（mods.scaleMul = poseCur）在 tailwag 全程恒为 1 —— 不再有「缩一圈再涨回来」
  *   ② 每段 tailwag 收在循环首帧（frameIndex 0），不出现半拍定格
  *   ③ 每段至少 2 轮（按 7 fps / 4 帧 = 0.571 s 一轮折算）
- * 用法：node tools/probe_tailwag.js [port] [采样秒数]
+ * 用法：node tools/probe/probe_tailwag.js [port] [采样秒数]
  * 前提：目标实例已带 --remote-debugging-port 启动，且与启动放在同一次命令里。
  */
 const PORT = process.argv[2] || '9280';

@@ -1,6 +1,6 @@
 /* 走/跑真机行为采样：连 CDP，钩住 Animator.prototype.draw 记录 (姿态, 帧号, 轮数)，
  * 采样一段时间后逐段校验「至少 2 个完整循环 / 帧序不跳 / 收在循环首帧」。
- * 用法：node tools/probe_locomotion.js [port] [采样秒数]
+ * 用法：node tools/probe/probe_locomotion.js [port] [采样秒数]
  */
 const PORT = process.argv[2] || '9270';
 const SEC = Number(process.argv[3] || 45);
