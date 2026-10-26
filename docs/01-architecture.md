@@ -113,7 +113,7 @@
 │   │   └── ai-secret.js    DPAPI 密钥加解密
 │   ├── assets/             运行期素材（sprites / audio / tray 图标）
 │   └── build/              打包资源（icon.ico / icon.png）
-├── assets-src/             素材源与中间产物（不打包，raw/ 下含 generated/ 试生成图）
+├── assets-src/             素材源与中间产物（不打包）：raw/（poses/frames/actions/generated）、sprites-poses/、audio-raw/、style-options/、previews/（工具按需再生）
 ├── docs/                   本文档目录
 ├── tools/                  辅助脚本，按用途分层
 │   ├── _root.py            仓库根定位（各子目录脚本共用）
@@ -121,11 +121,10 @@
 │   ├── probe/              实机探针（打包版 / 走跑 / 摇尾巴 / 抚摸 / 眨眼 / 取色）
 │   ├── sprites/            素材管线（抠图 / 归一化 / 接缝审计 / 预览）
 │   ├── audio/              音频管线（抓取 / 导入 / 音色 / 报告）
-│   └── legacy/             一次性历史脚本（只读留存）
+│   └── legacy/             一次性历史脚本（magenta_audit.py / diag_target_pc.bat，只读留存）
 ├── design/                 设计稿与验收图（preview/ 演示图、checks/ 对比图）
 ├── dist/                   构建产物（electron-builder 输出）
-├── archive/                本地归档（shots/ 截图、audio-history/ 音频报表，不入库）
-├── _backup/                可回滚快照（pose-orig、sfx/tone 精选前素材，不入库）
+├── archive/                本地归档（shots/ 截图、audio-history/ 音频报表、deletion-manifest 删除台账，不入库）
 └── .github/workflows/      CI：测试 → 构建 → 源码打包 → Release
 ```
 

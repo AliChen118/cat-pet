@@ -18,6 +18,11 @@ const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
 
 if (!fs.existsSync(ASAR)) {
   console.error(`[FAIL] 找不到 asar: ${ASAR}`);
+  if (!process.argv[2]) {
+    console.error('       默认路径来自打包中间目录，已被清理时会走到这里。');
+    console.error('       先跑 `cd app && npm run dist` 重新生成，或显式传路径：');
+    console.error('       node tools/check/verify_asar.js <某个 app.asar>');
+  }
   process.exit(1);
 }
 console.log(`asar  : ${ASAR}  ${(fs.statSync(ASAR).size / 1048576).toFixed(1)} MB`);

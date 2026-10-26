@@ -47,10 +47,10 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 │   ├── build/                  打包资源（icon.ico / icon.png）
 │   └── main.js …               主进程与各渲染窗口入口
 ├── assets-src/                 素材源（不打包，部分入库）
-│   ├── raw/                    AI 生成原图：poses / frames / actions / inbetween / generated
+│   ├── raw/                    AI 生成原图：poses / frames / actions / generated
 │   ├── sprites-poses/          抠图归一化后的单姿态成片（rebuild_sprites.py 产物）
 │   ├── audio-raw/              抓取的原始叫声与呼噜录音（CC0）
-│   ├── previews/               试听页、抠图对比页、循环展开图（单文件自包含）
+│   ├── previews/               试听页、抠图对比页、循环展开图（工具按需再生，平时为空）
 │   └── style-options/          早期风格候选图（归档）
 ├── docs/                       规格与决策文档（README.md 为索引，history/ 为方案原稿）
 ├── tools/                      辅助脚本（按用途分层）
@@ -63,7 +63,6 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 ├── design/                     设计稿与验收图（preview/ 演示图、checks/ 对比图）
 ├── dist/                       构建产物（electron-builder 输出，不入库）
 ├── archive/                    本地归档（不入库）：shots/ 截图、audio-history/ 音频报表
-├── _backup/                    可回滚快照（不入库）：pose-orig、sfx/tone 精选前素材
 └── .github/workflows/          CI 构建与发布流水线
 ```
 

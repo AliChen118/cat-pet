@@ -163,7 +163,7 @@ python tools/audio/analyze_meow_tone.py --csv _after_meow.csv
 python tools/audio/make_meow_preview.py && python tools/audio/make_meow_ab.py
 ```
 
-**回滚**：`_backup/tone-pre_<时间戳>/meow/` 是柔化前完整素材，整目录覆盖即可；精选前的 31 条在 `_backup/sfx-select_<时间戳>/`。
+**回滚**：柔化/精选前的素材不再本地留副本——源录音与抓取清单在 `assets-src/audio-raw/`（含 `_sources.json`），跑 `python tools/audio/import_voice_sfx.py` 可重建全流程；当前精选结果见 `app/assets/audio/CREDITS.md`。
 
 **环境依赖**：本机无 ffmpeg，解码走 `libsndfile`（`soundfile`，已含 MP3 支持）；若要处理 m4a/opus 可 `pip install imageio-ffmpeg` 提供二进制。
 
