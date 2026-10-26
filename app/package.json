@@ -1,6 +1,6 @@
 {
   "name": "cat-desktop-pet",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "Q版长毛银渐层桌面宠物 - 类QQ宠物陪伴程序",
   "main": "main.js",
   "author": "cat-pet",
@@ -51,11 +51,17 @@
       "artifactName": "CatDesktopPet-Portable-${version}.exe"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "artifactName": "CatDesktopPet-Setup-${version}.exe"
     },
     "linux": {

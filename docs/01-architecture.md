@@ -18,7 +18,7 @@
 | 渲染 | **HTML5 Canvas 2D** | 帧动画 + 粒子 + 程序化微动足够，无需 WebGL；调试成本低 |
 | 状态管理 | **自写有限状态机**（`engine/fsm.js`） | 15 个状态、规则集中，引入 Redux 类库反而增加间接层 |
 | 配置 | **自写 schema + 文件持久化** | 需要"单一来源驱动 UI"与逐版迁移，通用库不满足 |
-| 打包 | **electron-builder**（portable + NSIS） | 双产物、asar 归档、图标多尺寸生成 |
+| 打包 | **electron-builder**（portable + NSIS 向导式） | 双产物、asar 归档、图标多尺寸生成；安装版走标准向导（可选安装目录） |
 | 音频 | **Web Audio**（渲染进程） | 交互反馈要求 <100ms，放渲染进程免 IPC 往返 |
 
 **兼容性开关（不可删）**：`disableHardwareAcceleration` + `--disable-gpu` / `--in-process-gpu` / `--no-sandbox`。部分 Windows 显卡驱动下透明窗口会黑底或撕裂，这几个开关是实机验证过的兜底。

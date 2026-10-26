@@ -18,7 +18,7 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 | 平台 | 文件 | 说明 |
 |---|---|---|
 | Windows | `CatDesktopPet-Portable-<版本>.exe` | 便携版：单文件免安装，双击即用 |
-| Windows | `CatDesktopPet-Setup-<版本>.exe` | 安装版：NSIS 一键安装，可选桌面快捷方式 |
+| Windows | `CatDesktopPet-Setup-<版本>.exe` | 安装版：标准安装向导，可自选安装目录，显示进度与完成页（附桌面 / 开始菜单快捷方式） |
 | Linux | `CatDesktopPet-<版本>-x86_64.AppImage` | AppImage：`chmod +x` 后直接运行 |
 | 源码 | `CatDesktopPet-<版本>-source.zip` / `.tar.gz` | 与发布版本对应的源码包 |
 
