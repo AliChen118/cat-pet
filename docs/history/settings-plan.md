@@ -274,7 +274,7 @@
 | `preload.js` | 修改 | 暴露设置相关 API 与 `onConfigChanged` 订阅 |
 | `index.html` | 修改 | 右键菜单增加「设置…」；气泡/菜单样式接入主题与 `uiScale` |
 | `renderer.js` | 修改 | 消费新配置：名字与称呼进入气泡文案、透明度、阴影/粒子开关、减少动效、活跃度与呼喊间隔、允许睡觉/奔跑、滚轮缩放开关、主题 |
-| `tools/test_logic.js` | 修改 | 新增设置断言：schema 全覆盖校验、越界夹紧、枚举回退、损坏配置恢复、分组迁移、`config-changed` 联动 |
+| `tools/check/test_logic.js` | 修改 | 新增设置断言：schema 全覆盖校验、越界夹紧、枚举回退、损坏配置恢复、分组迁移、`config-changed` 联动 |
 | `README.md` | 修改 | 新增「设置」章节 |
 | `settings-plan.md` | 本文件 | — |
 

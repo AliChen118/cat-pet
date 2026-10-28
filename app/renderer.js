@@ -37,17 +37,40 @@
   const SHADOW_LIFT = 280;         // 起跳多高时阴影淡至最小
   const SHADOW_ALPHA = 0.15;       // 落地时的阴影不透明度
 
+  /**
+   * 阴影的姿态体积修正：各姿态身体占地在 269–465 px 之间浮动（±27%），
+   * 固定半径的阴影会在 run/walk 这种铺平的姿态下明显偏小（猫像浮在影子上），
+   * 在 sleep 蜷起来时又偏大。
+   *
+   * 系数 = sqrt(该姿态腐蚀核心面积均值 / idle)，由 tools/sprites/sprite_bounds.py
+   * 生成（跑一次即输出，改素材后必须重新生成）。范围 0.95–1.18，无需夹取。
+   */
+  const POSE_SHADOW_K = {
+    idle: 1.000, walk: 0.946, run: 0.961, jump: 1.041, stretch: 0.961,
+    drag: 1.010, sleep: 0.965, eat: 0.967, play: 1.032, pet: 0.998,
+    meow: 1.011, tailwag: 1.066, unhappy: 1.000, bath: 1.036, lick: 1.029,
+  };
+
   /* ---- 气泡定位（紧贴猫头顶，尺寸固定、不随体型缩放） ---- */
   const SPRITE_GROUND_Y = 470;     // 素材基线，与 engine/animator.js 保持一致
   const BUBBLE_GAP = 2;            // 尖角末端与猫头顶的间距（贴近宠物）
   const BUBBLE_TAIL = 6;           // 尖角伸出高度（与 index.html 中 ::after 的 bottom 一致）
+  /* 气泡最长存活（秒）。正常收尾靠 showBubble / aiShow 各自的定时器，
+     这里是兜底：AI 单句最多停留 8s（ai-talk 的 holdFor 上限），超过 20s 仍挂着
+     必定是某条路径只取消了定时器、没摘 .show —— 那种气泡会一直停到下次说话。 */
+  const BUBBLE_MAX_LIFE = 20;
   const HEAD_SMOOTH = 0.0004;      // 头顶高度的指数平滑系数（抑制帧序列带来的抖动）
 
-  /* ---- 活跃度 → 决策间隔与行为概率 ---- */
+  /* ---- 活跃度 → 决策间隔与行为概率 ----
+   * idle 是「主状态」：三档里 idle 的权重都排第一（low 0.55 / normal 0.42 / high 0.30），
+   * 走跑只作点缀——low 几乎不动、normal 偶发、high 才有明显跑动。
+   * 每档权重和恒为 1.00，与 needs-profile 的档位乘子相乘后再归一到 1；
+   * 末尾 meow 吃掉余量，保证加权随机永远不会掉进空档。
+   */
   const ACTIVITY = {
-    low:    { think: [4.5, 9.0], walk: 0.28, idle: 0.39, run: 0.07, jump: 0.06, stretch: 0.07, meow: 0.05, tailwag: 0.08 },
-    normal: { think: [2.2, 5.5], walk: 0.36, idle: 0.16, run: 0.16, jump: 0.08, stretch: 0.08, meow: 0.06, tailwag: 0.10 },
-    high:   { think: [1.2, 3.2], walk: 0.34, idle: 0.05, run: 0.24, jump: 0.12, stretch: 0.07, meow: 0.08, tailwag: 0.10 },
+    low:    { think: [4.5, 9.0], idle: 0.55, walk: 0.22, run: 0.05, jump: 0.05, stretch: 0.06, meow: 0.03, tailwag: 0.04 },
+    normal: { think: [2.2, 5.5], idle: 0.42, walk: 0.24, run: 0.11, jump: 0.08, stretch: 0.07, meow: 0.03, tailwag: 0.05 },
+    high:   { think: [1.2, 3.2], idle: 0.30, walk: 0.26, run: 0.16, jump: 0.11, stretch: 0.07, meow: 0.03, tailwag: 0.07 },
   };
 
   /* ---- 属性驱动的限流与中断参数（详见 docs/03-behavior.md §九） ---- */
@@ -62,7 +85,7 @@
   const GOOD_BUBBLE_PROB = 0.06; // 正向气泡触发概率
 
   /** 可被危急需求打断的状态（sleep 与全部交互/物理动作都不可打断） */
-  const INTERRUPTIBLE = { idle: true, walk: true, meow: true, tailwag: true, unhappy: true };
+  const INTERRUPTIBLE = { idle: true, walk: true, meow: true, tailwag: true, unhappy: true, lick: true };
 
   /* ---- 姿态资源：单图为 [path]，多帧为帧序列 + 帧率 ---- */
   const SPRITE_FILES = {
@@ -100,10 +123,11 @@
       'assets/sprites/frames/sleep_2.png',
       'assets/sprites/frames/sleep_3.png',
     ],
+    // eat_1/2/3 三帧几乎完全重合（相邻帧 IoU 0.99 / 0.98，bbox 同为 313 宽），
+    // 真正有区别的只有 eat_4。保留 4 帧等于「停 3 帧再换 1 帧」的顿挫，
+    // 这里只播两个有效关键帧并放慢到 4 fps，得到均匀的 2 Hz 咀嚼节奏。
     eat: [
       'assets/sprites/frames/eat_1.png',
-      'assets/sprites/frames/eat_2.png',
-      'assets/sprites/frames/eat_3.png',
       'assets/sprites/frames/eat_4.png',
     ],
     play: [
@@ -140,14 +164,54 @@
       'assets/sprites/frames/bath_5.png',
       'assets/sprites/frames/bath_6.png',
     ],
+    lick: [
+      'assets/sprites/frames/lick_1.png',
+      'assets/sprites/frames/lick_2.png',
+      'assets/sprites/frames/lick_3.png',
+      'assets/sprites/frames/lick_4.png',
+    ],
   };
 
   /* ---- 各姿态帧率：呼吸/睡/伸懒腰慢，玩耍/喵叫轻快，走跑最快 ---- */
   const SPRITE_FPS = {
     walk: 11, run: 13, tailwag: 7, unhappy: 2,
-    idle: 5, eat: 6, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
-    bath: 6,
+    idle: 5, eat: 4, play: 8, pet: 6, jump: 5, stretch: 5, sleep: 4, meow: 7,
+    bath: 6, lick: 5,
   };
+
+  /* ---- 舔爪子节奏：5 fps 基础帧 + 主帧（lick_2 舔舐）额外停留 150 ms ----
+   * 舔毛是慢节奏、有停顿感的动作：主帧停留接近基础帧的 1.75 倍，
+   * 让「舔」那一下有真正的停留。单轮 ≈ 0.95 s。 */
+  const LICK_FPS = 5;
+  const LICK_HOLD = 0.15;
+  const LICK_FRAME_COUNT = 4;
+  const LICK_CYCLE = LICK_FRAME_COUNT / LICK_FPS + LICK_HOLD;   // 单轮 ≈ 0.95 s
+  const LICK_ROUNDS_EAT = 2;        // 进食结束固定播 2 轮（≈ 1.90 s）
+  const LICK_CD = 90;               // 空闲触发的硬冷却（秒）
+  const LICK_PROB = 0.05;           // 每个决策点的命中概率
+  const LICK_HOLD_MAP = { 1: 1 / LICK_FPS + LICK_HOLD };   // 帧索引 1 = lick_2
+  /* 收尾提前量：状态切换发生在 animator.update 之前，而帧推进恰好也在同一时刻
+   * 环回到 lick_1（抬爪）。若不提前结束，淡出期最后一帧会闪回「抬爪」，看着像残影。
+   * 取半帧（1/5 ÷ 2 = 0.1 s）——末轮 lick_4 少显示 100 ms 无感，但收爪姿态收得住。 */
+  const LICK_END_TRIM = 0.1;
+
+  /* ---- 走/跑：最少 2 个完整循环 + 只在循环首帧收尾 ----
+   * 走 4 帧 @11fps = 0.364 s/轮 → 2 轮 0.727 s；跑 4 帧 @13fps = 0.308 s/轮 → 2 轮 0.615 s。
+   * 轮数由 animator.laps 在「环回首帧」时累加，走的是动画时间（动效速度倍率不影响判定）。 */
+  const WALK_CYCLE = 4 / SPRITE_FPS.walk;
+  const RUN_CYCLE = 4 / SPRITE_FPS.run;
+  const WALK_MIN_LOOPS = 2;
+  const RUN_MIN_LOOPS = 2;
+  const WALK_MIN_TIME = WALK_CYCLE * WALK_MIN_LOOPS;    // 0.727 s
+  const RUN_MIN_TIME = RUN_CYCLE * RUN_MIN_LOOPS;       // 0.615 s
+  /* 自由漫游的最小目标距离 = 正常步速 × 最少时长。
+   * 低于它就把步速按「距离 / 时长」反算放慢，保证到达时正好走满 2 轮，且不会走过头。 */
+  const WALK_MIN_DIST = Math.ceil(WALK_SPEED * WALK_MIN_TIME);   // 70 px
+  const RUN_MIN_DIST = Math.ceil(RUN_SPEED * RUN_MIN_TIME);      // 145 px
+  /* 比这更近视为「已经在目标点」（喂食碗/光标落在脚边）：不播走动，直接进后续动作 */
+  const WALK_SKIP_DIST = 24;
+  const RUN_SKIP_DIST = 40;
+  const RUN_SLOW_FLOOR = 0.65;   // 跑速放慢下限，仍要像「跑」而不是「挪」
 
   /* ================= 运行时状态 ================= */
 
@@ -170,6 +234,9 @@
     stats: { hunger: 80, energy: 80, happiness: 80 },
     targetX: null,
     afterWalk: null,
+    walkSpeed: WALK_SPEED,
+    runSpeed: RUN_SPEED,
+    walkSkip: false,
     eatTimer: 0,
     playTimer: 0,
     meowTimer: 0,
@@ -177,6 +244,10 @@
     stretchTimer: 0,
     bathTimer: 0,
     foamTimer: 0,
+    lickEnd: 0,        // 舔爪结束时刻（animator.clock 域，非线性墙钟）
+    lickRounds: 0,
+    lastLickAt: -Infinity,
+    tailwagEnd: 0,     // 摇尾巴结束时刻（同上，挂在动画时钟上）
     pendingAfterStretch: null,
   };
 
@@ -186,41 +257,65 @@
   let food = null;            // { x } 地面上的食碗
 
   /**
-   * 姿态级显示缩放表：素材逐姿态生成，猫的体格存在比例漂移
-   * （实测 unhappy/tailwag 头宽 ≈ idle 的 1.27 倍、bath ≈ 1.2 倍，pet ≈ 0.82 倍），
+   * 姿态级显示缩放表：素材逐姿态生成，猫的体格存在比例漂移，
    * 切姿态时会看到猫「突然变大/变小」。这里按 idle 基准逐姿态校正，
    * 锚点仍为素材 (256,470)（脚底贴地、躯干居中），不影响站位与阴影。
+   *
+   * ⚠ 这张表现在是空的：全部 15 个姿态的比例都已**烘焙进素材**，
+   *   运行时系数恒为 1，进出任何姿态都没有尺寸过渡。
+   *   烘焙工具：tools/sprites/fix_pose_frames.py（一次性统一尺度/对位/落地）
+   *   口径明细见 docs/02-animation.md「姿态尺寸一致性」。
+   *
+   * 新增姿态时优先改素材，不要往这里加系数——离散查表 + 帧级平滑会在切姿态时
+   * 留下一段约 0.4s 的尺寸过渡，而且必须靠 mods.prevScaleMul 才能让离场画面不跟着缩。
+   * 表本身保留，仅作应急兜底。
    */
-  const POSE_SCALE = { pet: 1.08, unhappy: 0.84, tailwag: 0.85, bath: 0.87 };
+  const POSE_SCALE = {};
   function poseScale() { return POSE_SCALE[fsm.name] || 1; }
 
   /* ---- 显示缩放的帧级平滑 ----
-   * 姿态校正表是「按姿态名查表」的离散值，切姿态的那一帧会整块生效（pet +8%、
-   * unhappy −16%、tailwag −15%、bath −13%），而帧序列只做图像交叉淡化、不插值缩放，
-   * 于是出现「一瞬间体型突变」。体型（设置/滚轮）同理：直接赋值也是瞬跳。
+   * 姿态校正表（上面那张）是「按姿态名查表」的离散值，若表里有非 1 项，切姿态的那
+   * 一帧会整块生效，而帧序列只做图像交叉淡化、不插值缩放，于是出现「一瞬间体型突变」。
+   * 体型（设置/滚轮）同理：直接赋值也是瞬跳。
    * 这里把「姿态校正 poseCur」「体型 sizeCur」各做一次指数平滑（≈0.12s 时间常数），
    * 所有绘制与几何（精灵、阴影、食碗、气泡头顶、特效锚点）统一读平滑值，
    * 逻辑量（bounds 边界、命中判定、面板定位）仍用目标值 pet.scale，互不干扰。
+   * 当前表为空，poseCur 恒为 1；这套机制保留下来是为了将来应急加系数时不至于又踩坑。
    */
   const SCALE_SMOOTH = 0.0004;    // 与 HEAD_SMOOTH 同量级：每帧约收敛 12%，0.35s 内到位
   let sizeCur = BASE_SCALE;       // 平滑后的体型
-  let poseCur = 1;                // 平滑后的姿态校正
+  let poseCur = 1;                // 平滑后的姿态校正（当前姿态）
+  let posePrev = 1;               // 上一个姿态的校正值：供仍在淡出的离场画面使用
+  let poseTargetPrev = null;      // 上一次查表得到的姿态目标值，用于识别「切姿态」这一刻
+  let shadowKCur = 1;             // 平滑后的阴影姿态体积修正
   let scaleReady = false;         // 首帧前直接对齐，避免启动时从基准值滑入
 
   function updateScaleSmoothing(dt) {
     const poseTarget = poseScale();
+    const shadowTarget = POSE_SHADOW_K[fsm.name] || 1;
     // 首帧 / 无 dt：直接对齐目标，杜绝启动首帧的「滑入」动画
     if (!scaleReady || !(dt > 0)) {
       sizeCur = pet.scale;
       poseCur = poseTarget;
+      posePrev = poseTarget;
+      poseTargetPrev = poseTarget;
+      shadowKCur = shadowTarget;
       scaleReady = true;
       return;
     }
+    // 切姿态的那一刻把「旧姿态的尺寸」定格给离场画面：
+    // 否则 poseCur 一路平滑到新值，仍在淡出的旧姿态会跟着缩
+    //（表现为「整只猫先缩一下再换成新姿态」）。动画器的交叉淡化只有 0.18s，
+    //  远短于尺寸平滑的 0.41s，所以离场期间用固定值即可。
+    if (poseTargetPrev !== null && poseTarget !== poseTargetPrev) posePrev = poseCur;
+    poseTargetPrev = poseTarget;
     sizeCur = Core.damp(sizeCur, pet.scale, SCALE_SMOOTH, dt);
     poseCur = Core.damp(poseCur, poseTarget, SCALE_SMOOTH, dt);
+    shadowKCur = Core.damp(shadowKCur, shadowTarget, SCALE_SMOOTH, dt);
     // 足够接近时吸附，避免长期停在小数差上
     if (Math.abs(sizeCur - pet.scale) < 1e-4) sizeCur = pet.scale;
     if (Math.abs(poseCur - poseTarget) < 1e-4) poseCur = poseTarget;
+    if (Math.abs(shadowKCur - shadowTarget) < 1e-4) shadowKCur = shadowTarget;
   }
 
   /* ---- 特效定位：一律按「猫当前的实际显示几何」换算（engine/fx.js） ----
@@ -270,6 +365,7 @@
   let bubbleSize = { w: 0, h: 0 };  // 气泡未缩放时的盒尺寸（文本变化时重测）
   let bubblePop = 1;          // 气泡弹出动画进度 0→1
   let bubbleHeadY = null;     // 平滑后的猫头顶（窗口坐标），用于挂载气泡
+  let bubbleShownAt = -1e9;   // 本句气泡的出现时刻（秒），供看门狗兜底
   const mouse = { x: W / 2, y: GROUND };
   let gesture = { active: false, dragging: false, sx: 0, sy: 0 };
   let mousePassOver = null;   // 动态鼠标穿透：上一次「鼠标是否在可交互区域」状态
@@ -358,6 +454,16 @@
     return t.trim();
   }
 
+  /* AI 自言自语的运行时状态。声明在气泡相关函数之前：showBubble / hideBubble
+     都要读写它（取消那句的定时器），放在后面会踩 TDZ。 */
+  const ai = {
+    busy: false,      // 正在讲一段：期间挂起自主气泡
+    nextAt: 0,        // 下次可以自己开口的时间点（秒）
+    showT: null,      // 当前句的隐藏定时器
+    tickT: 0,         // 调度检查节流（每 5s 一次）
+    text: '',         // 屏上这句话的原文：打断时据此判断「该不该顺手收掉气泡」
+  };
+
   function showBubble(text, voiceKey) {
     text = sanitizeBubbleText(text);
     if (!text) return;                 // 空文案（含词条缺失守卫）不出气泡框
@@ -377,11 +483,31 @@
       bubbleHeadY = null;     // 重新挂载时直接吸附头顶，不做平滑追赶
     }
     measureBubble();
+    bubbleShownAt = time;
     clearTimeout(showBubble._t);
+    // 顺手撤掉 AI 那句的定时器：两条定时器抢同一个元素，
+    // 留着它会在「普通气泡把 AI 台词顶掉」之后把新气泡提前收掉
+    clearTimeout(ai.showT);
+    ai.showT = null;
+    ai.text = '';
     showBubble._t = setTimeout(
       () => bubbleEl.classList.remove('show'),
       Math.max(1200, config.sound.bubbleDuration || 2200)
     );
+  }
+
+  /**
+   * 收气泡的唯一出口。
+   * 「只 clearTimeout 不摘 .show」是本文件出现过的最阴的一类 bug：
+   * 定时器没了、class 还在，气泡就会一直挂在屏幕上，直到下一次有人说话。
+   */
+  function hideBubble() {
+    clearTimeout(showBubble._t);
+    clearTimeout(ai.showT);
+    ai.showT = null;
+    ai.text = '';
+    bubbleEl.classList.remove('show');
+    bubbleEl.classList.remove('verse');
   }
 
   /** 测量气泡未缩放时的盒尺寸（transform 不影响布局尺寸，可安全用于缩放换算） */
@@ -481,12 +607,7 @@
    * 没有对话、没有输入——猫只单向说话。
    */
 
-  const ai = {
-    busy: false,      // 正在讲一段：期间挂起自主气泡
-    nextAt: 0,        // 下次可以自己开口的时间点（秒）
-    showT: null,      // 当前句的隐藏定时器
-    tickT: 0,         // 调度检查节流（每 5s 一次）
-  };
+  /* AI 状态对象见上方（与 showBubble 放一起，避免 TDZ）。 */
 
   /** AI 句子专用显示：不走 autoBubble 冷却，按主进程给的 hold 定时隐藏 */
   function aiShow(text, voiceKey, verse, hold) {
@@ -500,21 +621,25 @@
       bubbleHeadY = null;
     }
     bubbleEl.textContent = text;
+    ai.text = text;                     // 记下屏上这句，打断时据此判断归属
     bubbleEl.classList.toggle('verse', !!verse);
     bubbleEl.classList.add('show');
     measureBubble();
+    bubbleShownAt = time;
     clearTimeout(ai.showT);
-    ai.showT = setTimeout(() => {
-      bubbleEl.classList.remove('show');
-      bubbleEl.classList.remove('verse');
-    }, Math.max(1200, hold || config.sound.bubbleDuration || 2200));
+    ai.showT = setTimeout(hideBubble, Math.max(1200, hold || config.sound.bubbleDuration || 2200));
   }
 
   /** 打断进行中的一段（交互优先；也让主进程停掉后续句子的推送） */
   function interruptAi() {
     if (!ai.busy) return;
     ai.busy = false;
-    clearTimeout(ai.showT);
+    // 关键：不能只 clearTimeout。定时器一撤，那句的 .show 就没人摘了，
+    // 气泡会一直挂在屏幕上，直到下一次有别的台词把它顶掉——
+    // 这正是「拖拽时气泡长时间不消失」的根因。屏上还是这句就直接收掉；
+    // 已被别的话覆盖（如危急提醒）则只撤掉它的定时器，不动别人的气泡。
+    if (ai.text && bubbleEl.textContent === ai.text) hideBubble();
+    else { clearTimeout(ai.showT); ai.showT = null; ai.text = ''; }
     if (api && api.aiAbort) {
       try { api.aiAbort().catch(() => {}); } catch (_) { /* 忽略 */ }
     }
@@ -657,9 +782,28 @@
 
   /* ================= 工具 ================= */
 
-  function pickTarget() {
+  /**
+   * 随机漫游目标。minDist > 0 时只考虑空间足够的一侧，
+   * 保证「过去的路程」够走满最少循环数；两侧都不够则去更宽敞的那一头。
+   */
+  function pickTarget(minDist) {
     const [lo, hi] = bounds();
-    return Core.rand(lo, hi);
+    if (!(minDist > 0)) return Core.rand(lo, hi);
+    const roomL = pet.x - lo;
+    const roomR = hi - pet.x;
+    const canL = roomL > minDist;
+    const canR = roomR > minDist;
+    if (canL && canR) {
+      return Math.random() < 0.5 ? Core.rand(lo, pet.x - minDist) : Core.rand(pet.x + minDist, hi);
+    }
+    if (canL) return Core.rand(lo, pet.x - minDist);
+    if (canR) return Core.rand(pet.x + minDist, hi);
+    return roomL >= roomR ? lo : hi;
+  }
+
+  /** 冲刺速度：距离短就按「距离 / 最少时长」收着跑，下限 65%（仍要像「跑」而不是「挪」） */
+  function runSpeedFor(span) {
+    return clamp(span / RUN_MIN_TIME, RUN_SPEED * RUN_SLOW_FLOOR, RUN_SPEED);
   }
 
   /**
@@ -828,18 +972,34 @@
     walk: {
       enter() {
         animator.play('walk', 0.16);
-        if (pet.targetX == null) pet.targetX = pickTarget();
+        if (pet.targetX == null) pet.targetX = pickTarget(WALK_MIN_DIST);
+        // 步速 = 距离 / 最少时长，上限仍是正常步速：
+        // 路程够就正常走，路程短（碗/光标在脚边）就放慢，到达时正好满 2 轮，绝不走过头。
+        const span = Math.abs(pet.targetX - pet.x);
+        pet.walkSkip = span < WALK_SKIP_DIST;   // 贴脸距离：没有可看的步态，直接进后续动作
+        pet.walkSpeed = Math.min(WALK_SPEED, span / WALK_MIN_TIME);
       },
       update(_c, dt) {
+        if (pet.walkSkip) {
+          const next = pet.afterWalk || 'idle';
+          pet.targetX = null;
+          pet.afterWalk = null;
+          pet.walkSkip = false;
+          return next;
+        }
         const d = pet.targetX - pet.x;
         if (Math.abs(d) < 8) {
+          // 到位了还得满足：满 2 个完整循环，且停在循环首帧（不在跨步中间收势）
+          if (animator.lapsDone() < WALK_MIN_LOOPS || !animator.atCycleStart()) return null;
           const next = pet.afterWalk || 'idle';
           pet.targetX = null;
           pet.afterWalk = null;
           return next;
         }
         pet.facing = d > 0 ? 1 : -1;
-        pet.x += Math.sign(d) * WALK_SPEED * animSpeed() * dt;
+        // 单帧位移不超过剩余距离：精确落点，避免在目标两侧反复抖
+        const step = Math.min(Math.abs(d), pet.walkSpeed * animSpeed() * dt);
+        pet.x += Math.sign(d) * step;
         clampX();
         return null;
       },
@@ -848,6 +1008,7 @@
         if (food && pet.afterWalk === 'eat') food = null;
         pet.targetX = null;
         pet.afterWalk = null;
+        pet.walkSkip = false;
       },
     },
 
@@ -855,18 +1016,28 @@
       enter() {
         animator.play('run', 0.16);
         pet.runTimer = Core.rand(1.6, 3.0);
-        pet.targetX = pickTarget();
+        pet.targetX = pickTarget(RUN_MIN_DIST);
+        pet.runSpeed = runSpeedFor(Math.abs(pet.targetX - pet.x));
         pet.vx = 0;
       },
       update(_c, dt) {
         pet.runTimer -= dt;
-        if (pet.runTimer <= 0) return 'idle';
-        // 朝目标横向冲刺，不改变垂直状态
         const d = pet.targetX - pet.x;
+        if (Math.abs(d) < 10) {
+          // 到位但不满 2 轮（屏幕窄、目标被边界夹住）→ 换个远目标接着冲，不走走停停
+          if (animator.lapsDone() < RUN_MIN_LOOPS && pet.runTimer > 0) {
+            pet.targetX = pickTarget(RUN_MIN_DIST);
+            pet.runSpeed = runSpeedFor(Math.abs(pet.targetX - pet.x));
+            return null;
+          }
+          if (animator.lapsDone() < RUN_MIN_LOOPS || !animator.atCycleStart()) return null;
+          return 'idle';
+        }
+        if (pet.runTimer <= 0 && animator.lapsDone() >= RUN_MIN_LOOPS && animator.atCycleStart()) return 'idle';
         pet.facing = d > 0 ? 1 : -1;
-        pet.x += pet.facing * RUN_SPEED * animSpeed() * dt;
+        const step = Math.min(Math.abs(d), pet.runSpeed * animSpeed() * dt);
+        pet.x += Math.sign(d) * step;
         clampX();
-        if (Math.abs(pet.targetX - pet.x) < 10) return 'idle';
         return null;
       },
       exit() { pet.targetX = null; },
@@ -971,7 +1142,9 @@
           flushStats();
           lastSettleBubble = time;
           showBubble(bubble('eat'), 'eat');
-          return 'idle';
+          pet.lickRounds = LICK_ROUNDS_EAT;   // 吃完必定舔爪子
+          pet.lastLickAt = time;
+          return 'lick';
         }
         return null;
       },
@@ -1143,11 +1316,14 @@
     tailwag: {
       enter() {
         animator.play('tailwag', 0.18);
-        pet.tailwagTimer = Core.rand(2.2, 3.6);
+        // 计时挂「动画时钟」而非墙钟：动作速度 < 100% 时墙钟会把轮次提前掐断
+        pet.tailwagEnd = animator.clock + Core.rand(2.2, 3.6);
       },
-      update(_c, dt) {
-        pet.tailwagTimer -= dt;
-        return pet.tailwagTimer <= 0 ? 'idle' : null;
+      update() {
+        // 双条件退出：时间到 + 停在循环首帧。硬切序列若在任意帧中断，
+        // 会看到尾巴甩到一半突然定格再淡出；落在接缝上则与 idle 首帧衔接自然。
+        if (animator.clock < pet.tailwagEnd) return null;
+        return animator.atCycleStart() ? 'idle' : null;
       },
     },
 
@@ -1160,6 +1336,22 @@
       update(_c, dt) {
         pet.unhappyTimer -= dt;
         return pet.unhappyTimer <= 0 ? 'idle' : null;
+      },
+    },
+
+    /* 非交互动作：舔爪子（吃完 / 空闲随机触发，主帧停留略长） */
+    lick: {
+      enter() {
+        animator.play('lick', 0.12, { hold: LICK_HOLD_MAP });
+        const rounds = pet.lickRounds > 0 ? pet.lickRounds : 1;
+        pet.lickRounds = 0;
+        // 结束时刻必须挂在「动画时钟」上：帧推进走的是 dt × animSpeed()，
+        // 用墙钟累加会在 animSpeed < 1（默认 85%）时提前掐断——
+        // 2 轮实际要 1.9/0.85 ≈ 2.24 s，而墙钟 1.9 s 就收摊，收爪帧(lick_4)永远播不到。
+        pet.lickEnd = animator.clock + rounds * LICK_CYCLE - LICK_END_TRIM;
+      },
+      update() {
+        return animator.clock >= pet.lickEnd ? 'idle' : null;
       },
     },
 
@@ -1191,6 +1383,12 @@
       : config.behavior.activityLevel === 'high' ? -20 : 0;
     const bias = needVoiceOn() ? NP.sleepBias(needTiers()) : 0;
     return clamp(base + adj + bias, 0, 100) / 100;
+  }
+
+  /** 舔爪概率修正：毛不干净（非 good 档）时更爱舔，概率翻倍 */
+  function cleanFactor() {
+    if (!needVoiceOn()) return 1;
+    return needTiers().cleanliness === 'good' ? 1 : 2;
   }
 
   /**
@@ -1327,6 +1525,14 @@
 
     // ---- P9 以趴睡为主、偶尔起身活动 ----
     if (Math.random() < restiness()) return 'sleep';
+
+    // ---- P9.5 空闲舔爪：独立冷却 + 低概率，与权重表解耦（不挤占其他动作） ----
+    // 脏污档概率翻倍：毛不干净时更爱舔；实际间隔约 90–130 s
+    if (time - pet.lastLickAt > LICK_CD && Math.random() < LICK_PROB * cleanFactor()) {
+      pet.lastLickAt = time;
+      pet.lickRounds = Math.random() < 0.5 ? 1 : 2;
+      return 'lick';
+    }
 
     // ---- P10 加权随机表（受四项档位的乘子修正） ----
     const a = activity();
@@ -1677,7 +1883,7 @@
   }
 
   function computeMods() {
-    const m = { bob: 0, squashY: 1, squashX: 1, tilt: 0, scaleMul: poseCur };
+    const m = { bob: 0, squashY: 1, squashX: 1, tilt: 0, scaleMul: poseCur, prevScaleMul: posePrev };
     if (config.appear.reduceMotion) {
       // 减少动态效果：跳过程序化微动与落地位移缓冲（姿态级尺寸校正保留——它是尺寸不是动效）
       return m;
@@ -1733,6 +1939,10 @@
         // 帧序列已含尾巴摆动，微动仅保留轻微呼吸
         m.bob = Core.wave(at, 2.4, 1.0);
         break;
+      case 'lick':
+        // 帧序列已含抬爪/舔舐，只留极轻微呼吸（位移，不改尺寸）
+        m.bob = Core.wave(at, 2.0, 0.8);
+        break;
       case 'unhappy':
         // 慢速下沉起伏，蔫蔫的感觉（位移，不改尺寸——伤心动作也不得变大变小）
         m.bob = Core.wave(at, 1.1, 1.8);
@@ -1756,6 +1966,7 @@
   function drawShadow() {
     if (!config.appear.showShadow) return;
     const k = sizeCur / BASE_SCALE;                        // 体型缩放系数（平滑值，无跳变）
+    const ks = shadowKCur;                                 // 姿态体积修正（平滑值）
     const lift = clamp(1 - (-pet.y) / SHADOW_LIFT, 0.22, 1); // 离地越高越小越淡
     ctx.save();
     ctx.globalAlpha = SHADOW_ALPHA * lift;
@@ -1764,8 +1975,8 @@
     ctx.ellipse(
       pet.x,
       GROUND + 7 * k,
-      SHADOW_RX * k * lift,
-      SHADOW_RY * k * lift,
+      SHADOW_RX * k * ks * lift,
+      SHADOW_RY * k * ks * lift,
       0, 0, Math.PI * 2
     );
     ctx.fill();
@@ -1845,6 +2056,9 @@
       pendingNeed = null;
       needBubble(p.statKey, p.key, NEED_REACT_CD, true);
     }
+
+    // 气泡看门狗：定时器万一被取消而 .show 没摘，这里 20s 内一定收掉
+    if (bubbleEl.classList.contains('show') && time - bubbleShownAt > BUBBLE_MAX_LIFE) hideBubble();
 
     // 状态面板实时数据（0.25s 节流；面板关闭时不推送）
     // AI 自主调度：每 5s 判一次是否到点、是否够安静

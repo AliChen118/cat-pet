@@ -289,7 +289,7 @@ sleepBias(tiers)                             // restiness 修正合计
 | `renderer.js` | `decide()` 重写（分级阈值 + 权重乘子 + 优先级表）；新增 `checkNeedTransitions()` / `maybeUrgent()` / `needBubble()` / `tierSnapshot`；`restiness()` 叠加 `sleepBias`；`computeMods()` 加 idle 抖动；`index.html` 引 script |
 | `engine/i18n.js` | 新增 72 条 need 文案 + `notify.cleanLow` + 4 条恢复类文案（中英各） |
 | `engine/config-schema.js` | 新增 2 项（`behavior.needVoice` / `behavior.needSensitivity`）；`CONFIG_VERSION` 4 → **5**；`load()` 显式放行 v4 |
-| `tools/test_logic.js` | 新增分档 / 迟滞 / 权重合成 / 优先级 / 跨档反应 / 睡眠抑制 / `allowSleep=false` 退化 共约 30 条断言（91 → ~121） |
+| `tools/check/test_logic.js` | 新增分档 / 迟滞 / 权重合成 / 优先级 / 跨档反应 / 睡眠抑制 / `allowSleep=false` 退化 共约 30 条断言（91 → ~121） |
 | `README.md` | 新增「属性驱动」章节、阈值表、路径图更新 |
 | `package.json` | 版本 1.6.0 → 1.7.0 |
 
@@ -310,7 +310,7 @@ sleepBias(tiers)                             // restiness 修正合计
 
 ## 8. 验证计划
 
-1. **单元层**（`tools/test_logic.js`，无头）：
+1. **单元层**（`tools/check/test_logic.js`，无头）：
    - 分档函数：四项属性 × 各档边界值（14/15/34/35/69/70）× 三种灵敏度
    - 迟滞：34→35 不升档、35→39 才升档
    - 权重合成：四项全 critical 时归一化后仍合法（总和 = 1、无 NaN）
@@ -346,7 +346,7 @@ sleepBias(tiers)                             // restiness 修正合计
 2. `engine/i18n.js` 补 72 + 5 条词条（中英）
 3. `engine/config-schema.js` 加 2 项 + `CONFIG_VERSION` 5 + `load()` 放行 v4
 4. `renderer.js` 重写 `decide()` + 新增三个机制函数 + `computeMods()` 抖动
-5. `tools/test_logic.js` 补断言 → 跑全量回归
+5. `tools/check/test_logic.js` 补断言 → 跑全量回归
 6. 数值沙箱验证跨档时刻
 7. 实机冒烟（源码版）→ 交付你验收
 8. 升版 1.7.0 → 打包 → 更新 README 与项目记忆

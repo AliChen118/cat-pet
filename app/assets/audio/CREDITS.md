@@ -3,7 +3,7 @@
 ## 结论
 
 当前打包的 **15 条**情境素材全部为 **CC0 / CC-BY 真实猫叫录音**（无程序化占位音、无来源不明素材），
-抓取日期 2026-10-17，抓取脚本 `tools/fetch_cat_sfx.py`，加工脚本 `tools/import_voice_sfx.py`。
+抓取日期 2026-10-17，抓取脚本 `tools/audio/fetch_cat_sfx.py`，加工脚本 `tools/audio/import_voice_sfx.py`。
 CC-BY 条目已在本文件署名；CC0 无需署名，仍完整登记以便追溯。
 
 原始录音留存于 `assets/audio-raw/`（已在 `package.json` 的 `build.files` 中排除，不随包分发）。
@@ -28,10 +28,10 @@ CC-BY 条目已在本文件署名；CC0 无需署名，仍完整登记以便追�
 ## 二、加工链（可复跑）
 
 ```
-抓取   tools/fetch_cat_sfx.py      OGA 直链 + Freesound preview（CC0 过滤 + ≤9s）
-加工   tools/import_voice_sfx.py   切片→裁静音→90Hz 高通→变速→4 段 EQ→压缩→柔性起落→响度归一→OGG
+抓取   tools/audio/fetch_cat_sfx.py      OGA 直链 + Freesound preview（CC0 过滤 + ≤9s）
+加工   tools/audio/import_voice_sfx.py   切片→裁静音→90Hz 高通→变速→4 段 EQ→压缩→柔性起落→响度归一→OGG
 呼噜   (同脚本 loop 通路)          28Hz 高通→呼噜专用 EQ→循环接缝交叉淡化→响度归一
-交付   tools/make_sfx_report.py    生成 voice-sfx-report.md / 试听页 / 本文件
+交付   tools/audio/make_sfx_report.py    生成 voice-sfx-report.md / 试听页 / 本文件
 ```
 
 统一音色曲线：320Hz 低架 +2.6dB（暖）→ 900Hz +1.2dB（实体）→ 3.4kHz −3.4dB（削刺）→ 5.6kHz 高频架 −4.2dB（削嘶）；压缩 2.6:1 只压瞬态尖峰；12–20ms raise-cosine 起音。
@@ -63,4 +63,4 @@ CC-BY 条目已在本文件署名；CC0 无需署名，仍完整登记以便追�
 
 1. 新增素材必须是 **CC0 / CC-BY**（CC-BY 需在本文件补作者与链接），禁用来源不明素材。
 2. 时长：普通 0.4–1.3s，呼噜 ≤3.5s（loop）；44.1kHz 单声道 OGG。危急/系统音情境已按用户精选下线，恢复前不得重新引入目录。
-3. 增删变体只改 `engine/voice.js` 的 `SPEC.files` + `tools/import_voice_sfx.py` 的 `CUTS`，`tools/test_logic.js` 会校验素材存在性与时长上限，漏放即 FAIL。
+3. 增删变体只改 `engine/voice.js` 的 `SPEC.files` + `tools/audio/import_voice_sfx.py` 的 `CUTS`，`tools/check/test_logic.js` 会校验素材存在性与时长上限，漏放即 FAIL。

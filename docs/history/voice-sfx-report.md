@@ -1,6 +1,6 @@
 # 猫叫音效素材：抓取 · 加工 · 分配报告
 
-> 数据来源：`_voice_manifest.json`（由 `tools/import_voice_sfx.py` 生成）；素材目录 `cat-pet/assets/audio/meow/`。
+> 数据来源：`_voice_manifest.json`（由 `tools/audio/import_voice_sfx.py` 生成）；素材目录 `cat-pet/assets/audio/meow/`。
 
 ## 一、结论
 
@@ -25,7 +25,7 @@
 | pixabay.com / cdn.pixabay.com | ❌ 403 | 反爬拦截 |
 | soundbible.com | ❌ 000 | 不可达 |
 
-**抓取实现**：`tools/fetch_cat_sfx.py`（urllib + 正则解析，无浏览器依赖）。Freesound 侧只取 **CC0 过滤 + 时长 ≤9s** 的结果，只下载 preview 的 ogg；OGA 侧直接拿原始 wav/ogg。全部素材落 `cat-pet/assets/audio-raw/`（**不打包**，仅作再生成输入）。
+**抓取实现**：`tools/audio/fetch_cat_sfx.py`（urllib + 正则解析，无浏览器依赖）。Freesound 侧只取 **CC0 过滤 + 时长 ≤9s** 的结果，只下载 preview 的 ogg；OGA 侧直接拿原始 wav/ogg。全部素材落 `cat-pet/assets/audio-raw/`（**不打包**，仅作再生成输入）。
 
 **若抓不到时的替代方案与依赖**（已内置降级，便于换机/换网复跑）：
 1. Freesound 若被要求登录或改版：改用官方 API（`FREESOUND_API_KEY` + `qs=license:"Creative Commons 0"`），或整体退回 OGA 直链（`OGA_FILES` 表可独立运行）。
@@ -101,8 +101,8 @@ CC-BY 素材需署名：`Cat SFX`（Macro, CC-BY 3.0）、`cat pickup effect`（
 ## 七、验收与回滚
 
 1. 试听：打开 `assets/previews/cat-sfx-preview.html`（base64 内嵌，双击即响，可按类型筛选/串播）。
-2. 回归：`node tools/test_logic.js` —— 全部断言通过（含 12 情境、精选 16 条与勾选清单逐条一致、素材目录无未勾选残留、呼噜≤3.5s、呼噜铺底不受全局节流影响、voiceVolume 音量链路）。
-3. 重生成：`python tools/fetch_cat_sfx.py` → `python tools/import_voice_sfx.py` → `python tools/make_sfx_report.py`（改一行切片/变速即可重跑）。
+2. 回归：`node tools/check/test_logic.js` —— 全部断言通过（含 12 情境、精选 16 条与勾选清单逐条一致、素材目录无未勾选残留、呼噜≤3.5s、呼噜铺底不受全局节流影响、voiceVolume 音量链路）。
+3. 重生成：`python tools/audio/fetch_cat_sfx.py` → `python tools/audio/import_voice_sfx.py` → `python tools/audio/make_sfx_report.py`（改一行切片/变速即可重跑）。
 4. 回滚：`cp -r _backup/sfx-pre_20261017-110111/meow/* cat-pet/assets/audio/meow/` 并把 `engine/voice.js` 的 `purr/purrSleep` 两行与 renderer 两处调用移除。
 
 > 说明：当前曲库为**用户勾选的 15 条精选**（2026-10-17，红框 16 条再按用户要求去掉 pet_2），未勾选的 16 条已从`CUTS` 表与素材目录移除（含 pet_2）；`sad/dirty/urgent/sys` 四个情境在 `engine/voice.js` 中整体下线，对应气泡只显示文字。若要恢复，从 `_backup/sfx-select_20261017-121948/` 回滚或把 `CUTS` 表对应行加回再重跑。

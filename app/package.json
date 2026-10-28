@@ -1,6 +1,6 @@
 {
   "name": "cat-desktop-pet",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Q版长毛银渐层桌面宠物 - 类QQ宠物陪伴程序",
   "main": "main.js",
   "author": "cat-pet",
@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node ../tools/test_logic.js",
+    "test": "node ../tools/check/test_logic.js",
     "dist": "electron-builder --win portable nsis",
     "dist:win": "electron-builder --win portable nsis",
     "dist:linux": "electron-builder --linux AppImage",
@@ -51,11 +51,17 @@
       "artifactName": "CatDesktopPet-Portable-${version}.exe"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "zh_CN"
+      ],
       "artifactName": "CatDesktopPet-Setup-${version}.exe"
     },
     "linux": {

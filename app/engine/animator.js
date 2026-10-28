@@ -19,15 +19,36 @@ const SPRITE_CENTER = 256;
 const FRAME_BLEND = 0.35; // 帧间插值窗口占单帧时长的比例
 
 /**
+ * 不做帧间插值的姿态：这些序列是「手绘关键帧」，相邻帧姿态差异大。
+ *
+ * 判据：相邻帧 alpha 掩膜最小 IoU < 0.90。插值实现是「当前帧实心 + 下一帧按 k
+ * 叠上去」，差异大的姿态会让两个轮廓同时可见——双爪 / 双头 / 两条尾巴 /
+ * 两只球（play）/ 两个食盆（eat），因此这类姿态直接硬切。
+ *
+ * 实测最小相邻帧 IoU（素材归一化后复测，跑 tools/check/pose_iou.py 可复现）：
+ *   run 0.59　jump 0.68　walk 0.69　stretch 0.75　tailwag 0.77　bath 0.79
+ *   unhappy 0.80　play 0.82　eat 0.84　lick 0.86　　← 全部硬切
+ *   sleep 0.94　pet 0.94　idle 0.98　meow 0.99　　　← 保留插值（差异小，淡化更顺）
+ *
+ * 新增姿态时先跑一次 pose_iou.py：<0.90 就加进这个集合，否则会出现残影。
+ */
+const NO_FRAME_BLEND = new Set([
+  'run', 'jump', 'walk', 'stretch', 'tailwag',
+  'bath', 'unhappy', 'play', 'eat', 'lick',
+]);
+
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
  * 内容顶部静态回退表（sprite 像素坐标，数值越小越高）。
- * 由 tools/sprite_bounds.py 生成；运行时会优先用画布实测值，
+ * 由 tools/sprites/sprite_bounds.py 生成；运行时会优先用画布实测值，
  * 仅在实测不可用（如无头环境 / 跨域素材）时回退到这里。
  * 取姿态内最高帧（顶值最小）作为姿态级常量，保证同姿态下气泡不抖动。
  */
 const CONTENT_TOP_FALLBACK = {
-  idle: 130, walk: 71, run: 70, jump: 130, stretch: 130, drag: 70,
-  sleep: 130, eat: 130, play: 130, pet: 130, meow: 130, tailwag: 70, unhappy: 70,
-  bath: 71,
+  idle: 130, walk: 99, run: 110, jump: 112, stretch: 130, drag: 99,
+  sleep: 130, eat: 130, play: 99, pet: 91, meow: 128, tailwag: 101,
+  unhappy: 131, bath: 93, lick: 104,
 };
 
 function loadImage(src) {
@@ -78,6 +99,8 @@ class Animator {
     this.frameIndex = 0;
     this.frameTime = 0;
     this.once = false;
+    this.holdMap = null;    // 逐帧停留覆盖：{ 帧索引: 时长秒 }，null = 全部用 1/fps
+    this.laps = 0;          // 本次 play 内已完成的完整循环数（走/跑的最少轮数门禁靠它）
 
     /* ---- 待机眨眼控制（仅 idle 姿态生效） ----
      * blinkCfg 由渲染进程按设置写入；null = 保持旧的整序列循环。
@@ -136,6 +159,18 @@ class Animator {
     return !!seq && seq.length > 0;
   }
 
+  /**
+   * 某姿态某帧的实际停留时长（秒）。
+   * 有 holdMap 覆盖时用覆盖值，否则 1/fps；帧间插值窗口必须按这个值算，
+   * 否则被拉长的帧会让插值进度越过 1，出现「下一帧满不透明闪一下再消失」。
+   */
+  frameDur(name, idx) {
+    const fps = this.fps[name] || 0;
+    if (!(fps > 0)) return 0;
+    if (this.holdMap && this.holdMap[idx] != null) return this.holdMap[idx];
+    return 1 / fps;
+  }
+
   frameCount(name) {
     const seq = this.sprites[name];
     return seq ? seq.length : 0;
@@ -144,7 +179,8 @@ class Animator {
   /**
    * 切换姿态；fade 为状态交叉淡化时长（秒）。
    * opts.once: true 时顺序播放到最后一帧后定格（跳跃/伸懒腰等单次动作）；
-   * opts.startAt: 起始帧索引（下落状态直接从腾空帧开始）。
+   * opts.startAt: 起始帧索引（下落状态直接从腾空帧开始）；
+   * opts.hold: { 帧索引: 秒 } 逐帧覆盖停留时长（如舔爪主帧加长），其余帧仍用 1/fps。
    */
   play(name, fade = 0.18, opts = {}) {
     if (!this.has(name) || this.current === name) return;
@@ -155,8 +191,28 @@ class Animator {
     this.blend = 0;
     this.fadeDur = Math.max(0.001, fade);
     this.once = !!opts.once;
+    this.holdMap = opts.hold || null;
     this.frameIndex = opts.startAt ? opts.startAt | 0 : 0;
     this.frameTime = 0;
+    this.laps = 0;
+  }
+
+  /** 本次 play 内已播完的完整循环数 */
+  lapsDone() {
+    return this.laps;
+  }
+
+  /** 是否停在循环首帧（走/跑只允许在这里切换状态，收势才自然） */
+  atCycleStart() {
+    return this.frameIndex === 0;
+  }
+
+  /** 某姿态单轮时长（秒，动画时间）；无该姿态或帧率异常时返回 0 */
+  cycleSec(name) {
+    const seq = this.sprites[name];
+    const fps = this.fps[name] || 0;
+    if (!seq || !seq.length || !(fps > 0)) return 0;
+    return seq.length / fps;
   }
 
   update(dt) {
@@ -219,6 +275,8 @@ class Animator {
       // ---- 普通整序列循环（原逻辑） ----
       this.nextIdx = null;
       this.frameTime += dt;
+      // 逐帧停留：opts.hold 覆盖当前帧的停留时长（舔爪主帧要停久一点）
+      const durOf = (i) => this.frameDur(this.current, i);
       // 单次播放：到最后一帧定格，不再循环（避免跳跃在空中反复蹲起）
       if (this.once && this.frameIndex >= seq.length - 1) {
         this.frameTime = 0;
@@ -226,9 +284,11 @@ class Animator {
       }
       // 用 while 兼容低帧率或长帧间隔，避免丢帧
       let guard = 0;
-      while (this.frameTime >= dur && guard++ < 16) {
-        this.frameTime -= dur;
-        this.frameIndex = (this.frameIndex + 1) % seq.length;
+      while (this.frameTime >= durOf(this.frameIndex) && guard++ < 16) {
+        this.frameTime -= durOf(this.frameIndex);
+        const nxt = (this.frameIndex + 1) % seq.length;
+        if (nxt === 0) this.laps++;          // 环回 = 播完一整轮
+        this.frameIndex = nxt;
         if (this.once && this.frameIndex >= seq.length - 1) { this.frameTime = 0; break; }
       }
     }
@@ -258,29 +318,35 @@ class Animator {
     const useNext = (this.current === 'idle' && this.blinkCfg) ? this.nextIdx : null;
 
     if (this.prev && this.blend < 1) {
-      this._drawSeq(ctx, this.prev, this.prevFrame, 1 - this.blend, x, y, scale, facing, mods, 0, 0, null);
+      // 离场画面必须用它自己的姿态缩放系数（mods.prevScaleMul）：
+      // mods.scaleMul 是「进场」姿态的，直接复用会把仍在淡出的旧姿态一起缩放，
+      // 表现为「整只猫先缩一下，再以新尺寸换成新姿态」。
+      const prevMods = (mods.prevScaleMul != null && mods.prevScaleMul !== mods.scaleMul)
+        ? Object.assign({}, mods, { scaleMul: mods.prevScaleMul })
+        : mods;
+      this._drawSeq(ctx, this.prev, this.prevFrame, 1 - this.blend, x, y, scale, facing, prevMods, 0, 0, null);
     }
     if (this.current) {
       this._drawSeq(
         ctx, this.current, this.frameIndex, this.blend,
         x, y, scale, facing, mods,
-        this.frameTime, this.fps[this.current] || 0, useNext
+        this.frameTime, this.frameDur(this.current, this.frameIndex), useNext
       );
     }
   }
 
   /** 绘制一个姿态序列：当前帧 + 与下一帧的插值淡入（nextOverride 供眨眼循环指定后继帧） */
-  _drawSeq(ctx, name, idx, alpha, x, y, scale, facing, mods, frameTime, fps, nextOverride) {
+  _drawSeq(ctx, name, idx, alpha, x, y, scale, facing, mods, frameTime, curDur, nextOverride) {
     const seq = this.sprites[name];
     if (!seq || !seq.length || alpha <= 0) return;
 
     this._drawOne(ctx, seq[idx % seq.length], x, y, scale, facing, mods, alpha);
 
-    if (seq.length > 1 && fps > 0) {
-      const dur = 1 / fps;
-      const t = frameTime / dur;
+    // 帧间插值：curDur 是该帧的实际停留时长（含 hold 覆盖），窗口取其后 35%
+    if (seq.length > 1 && curDur > 0 && !NO_FRAME_BLEND.has(name)) {
+      const t = clamp01(frameTime / curDur);
       if (t > 1 - FRAME_BLEND) {
-        const k = Core.Ease.inOutQuad((t - (1 - FRAME_BLEND)) / FRAME_BLEND);
+        const k = clamp01(Core.Ease.inOutQuad((t - (1 - FRAME_BLEND)) / FRAME_BLEND));
         const nxt = (nextOverride != null && nextOverride >= 0) ? nextOverride : (idx + 1) % seq.length;
         this._drawOne(ctx, seq[nxt], x, y, scale, facing, mods, alpha * k);
       }

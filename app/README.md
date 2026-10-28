@@ -34,10 +34,27 @@ npm run dist:portable  # 只产出便携版
 
 | 产物 | 说明 |
 |------|------|
-| `CatDesktopPet-Portable-1.0.0.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
-| `CatDesktopPet-Setup-1.0.0.exe` | **安装版**：NSIS 一键安装（写入用户目录，可选桌面快捷方式，完成后自动运行） |
+| `CatDesktopPet-Portable-1.2.0.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
+| `CatDesktopPet-Setup-1.2.0.exe` | **安装版**：标准 Windows 安装向导（可自定义安装目录、显示安装进度，安装完成可直接勾选运行；默认写入当前用户目录，无需管理员权限） |
 
 打包方式：**electron-builder**（asar 归档 + Electron 31 运行时），应用图标 `build/icon.ico` 由精灵图 `idle.png` 自动生成（256/128/64/48/32/16 多尺寸）。用户数据（配置、备份）保存在 `%APPDATA%/cat-desktop-pet`，与程序目录分离，替换 exe 不丢数据；首次启动会自动写出默认 `config.json`。
+
+**安装版向导（1.1.9 起）**：`oneClick: false` + `allowToChangeInstallationDirectory: true`，四页标准流程 ——
+
+| 页面 | 内容 |
+|------|------|
+| 安装选项 | 「仅为当前用户」/「为使用这台电脑的任何人」二选一（默认当前用户，无需管理员权限） |
+| 选定安装位置 | 目标文件夹可编辑 + 浏览按钮，实时显示所需空间 / 可用空间 |
+| 正在安装 | 进度条（`compression: maximum` 下先解压后落盘，进度条会先停在一段再快速推进） |
+| 完成 | 可勾选「运行 CatDesktopPet」，完成后直接启动 |
+
+四页实机截图在 `../design/checks/installer-wizard-1.1.9/`：`01-install-mode.png`（安装选项）、`02-directory-custom.png`（自定义目录，含所需/可用空间）、`03-progress.png`（进度）、`04-finish.png`（完成页）、`05-run-from-custom-dir.png`（从自定义目录启动后的画面）。
+
+三点行为说明：
+
+- 在「选定安装位置」里选的目录，安装时会自动补一层 `CatDesktopPet` 子目录（electron-builder `instFilesPre` 行为，避免文件散落到用户自选目录根部）。
+- 静默安装：`CatDesktopPet-Setup-1.2.0.exe /S /D=<路径>`（`/D=` 不带引号且必须是最后一个参数）。
+- 卸载：Windows「设置 → 应用」或安装目录里的 `Uninstall CatDesktopPet.exe`，快捷方式与卸载表项一并清理；用户数据 `%APPDATA%/cat-desktop-pet` 保留（`deleteAppDataOnUninstall: false`），重装后配置与宠物状态继续可用。
 
 > **注意**：在注入了 `ELECTRON_RUN_AS_NODE=1` 或 `NODE_OPTIONS`（--require 垫片）的终端里从命令行启动 exe 会失效（被当作纯 Node 运行，表现为进程驻留但无窗口）。日常使用请直接**双击 exe**，或在启动前清除这两个环境变量（`env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./CatDesktopPet.exe`）。
 
@@ -106,7 +123,7 @@ npm run dist:portable  # 只产出便携版
 | `idle` | 4 | 5 fps | 呼吸循环；常态只在睁眼帧之间轮播，眨眼由独立随机时钟触发（见下） |
 | `walk` | 4 | 11 fps | 四足交替落地，含重心转移与身体起伏 |
 | `run` | 4 | 13 fps | 四足腾空瞬间收腿，含前倾与更大起伏 |
-| `eat` | 4 | 6 fps | 低头咬食 → 咀嚼 → 抬头吞咽 → 舔食 |
+| `eat` | 2 | 4 fps | 咬食 → 舔食（去掉中段两帧，避免帧间淡化出「两个食盆」） |
 | `play` | 4 | 8 fps | 举爪蓄力 → 拍球 → 兴奋后仰 → 低头盯球 |
 | `pet` | 3 | 6 fps | 被抚摸蹭头三连（左右蹭 + 仰头满足） |
 | `jump` | 3 | 5 fps | 下蹲蓄力 → 腾空舒展 → 落地挤压（单次播放，周期 ≈ 腾空时长 0.62s） |
@@ -116,6 +133,7 @@ npm run dist:portable  # 只产出便携版
 | `tailwag` | 4 | 7 fps | 摇尾巴（非交互自主动作） |
 | `unhappy` | 2 | 2 fps | 不高兴（非交互自主动作） |
 | `bath` | 6 | 6 fps | 洗澡（坐盆 → 泡泡 → 抖身水花 → 冲净 → 甩尾收尾） |
+| `lick` | 4 | 5 fps | 舔爪子（抬爪 → 舔爪背 → 擦脸 → 收爪）；主帧 `lick_2` 额外停留 150 ms，单轮 ≈ 0.95 s |
 | `drag` | 1 | — | 被拎起（单姿态） |
 
 **待机眨眼**（`engine/animator.js` 的 `blinkCfg` / `_scheduleBlink`）：眨眼的触发独立于帧序列，由一条累加时钟驱动。
@@ -353,7 +371,7 @@ app/                        # 应用源码（Electron）
 │   └── i18n.js           # 中英文案词条（托盘 / 菜单 / 气泡 / 通知 / 设置窗口）
 └── assets/
     ├── sprites/          # 运行期素材：仅 drag.png 单帧（其余姿态走 frames/）
-    │   └── frames/       # 13 个序列帧姿态共 47 张（512×512 透明底）
+    │   └── frames/       # 14 个序列帧姿态共 51 张（512×512 透明底）
     ├── tray_32.png       # 托盘图标
     └── tray_64.png       # 高清托盘图标
 ```
@@ -376,21 +394,21 @@ app/                        # 应用源码（Electron）
 处理命令示例：
 
 ```bash
-python tools/extract_sprite.py  raw.png  cutout.png
-python tools/normalize_sprite.py cutout.png  ../assets-src/sprites-poses/idle.png
+python tools/sprites/extract_sprite.py  raw.png  cutout.png
+python tools/sprites/normalize_sprite.py cutout.png  ../assets-src/sprites-poses/idle.png
 
 # 序列帧：脚本按文件名排序，故须先把原始帧重命名成 walk_1..4 / run_1..4
 # （AI 原始文件名形如 Walkframe{one,four,three,two}，字典序为 four→one→three→two，顺序会错乱）
-python tools/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets-src/raw/frames/walk_2.png \
+python tools/sprites/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets-src/raw/frames/walk_2.png \
        ../assets-src/raw/frames/walk_3.png ../assets-src/raw/frames/walk_4.png \
        --outdir ../app/assets/sprites/frames --prefix walk_ --height 340
 ```
 
-**姿态清单**（14 个，全部 512×512、内容底边对齐 y=470；其中 13 个已升级为帧序列）：
+**姿态清单**（15 个，全部 512×512、内容底边对齐 y=470；其中 14 个已升级为帧序列）：
 
 `idle` `walk` `run` `jump` `stretch` `drag` `sleep` `eat` `play` `pet` `meow` `tailwag` `unhappy`
 
-**序列帧**：`walk_1..4`、`run_1..4`、`idle_1..4`、`eat_1..4`、`play_1..4`、`pet_1..3`、`jump_1..3`、`stretch_1..3`、`sleep_1..3`、`meow_1..3`、`tailwag_1..4`、`unhappy_1..2`、`bath_1..6`（共 47 张，同规格）。
+**序列帧**：`walk_1..4`、`run_1..4`、`idle_1..4`、`eat_1..4`、`play_1..4`、`pet_1..3`、`jump_1..3`、`stretch_1..3`、`sleep_1..3`、`meow_1..3`、`tailwag_1..4`、`unhappy_1..2`、`bath_1..6`、`lick_1..4`（共 51 张，同规格）。
 
 **单次播放**：`jump` / `stretch` 通过 `animator.play(name, fade, { once: true })` 播放到末帧定格；
 `fall`（下落）以 `{ startAt: 1 }` 直接从腾空帧开始，落地挤压由 squash 模块承担。
@@ -399,7 +417,7 @@ python tools/normalize_sequence.py ../assets-src/raw/frames/walk_1.png ../assets
 
 ## 七、已知限制与后续可扩展
 
-- 13 个姿态均为 4–6 帧序列 + 帧间 35% 交叉淡化，动作已较流畅；`drag` 仍是单帧静态图（被拎着不晃）。若想更细腻可继续补帧（管线已就绪：`tools/normalize_sequence.py` 支持整序列统一缩放与躯干核心对齐），注意包体与启动耗时随之上升。
+- 13 个姿态均为 4–6 帧序列 + 帧间 35% 交叉淡化，动作已较流畅；`drag` 仍是单帧静态图（被拎着不晃）。若想更细腻可继续补帧（管线已就绪：`tools/sprites/normalize_sequence.py` 支持整序列统一缩放与躯干核心对齐），注意包体与启动耗时随之上升。
 - 语音为本地内置素材（`assets/audio/meow/`，.ogg 优先、.wav 兜底），共 15 条精选叫声 + 2 条呼噜音轨；新增叫声同名放入 `assets/audio/meow/` 即可替换，无需改代码。
 - 说话气泡文案目前为内置中文短句，可扩展为随机句库。
 - 多显示器跨 DPI 拖动时透明窗口尺寸可能轻微漂移（已用 `enforceSize()` 守卫兜底，单屏无此问题）。

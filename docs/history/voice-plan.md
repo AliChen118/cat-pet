@@ -15,7 +15,7 @@
 | 气泡唯一出口 `showBubble(text)`（renderer.js:244） | **语音挂载点**：为其增加可选第二参数（语义 key），避免从渲染文本反查 |
 | 气泡上游 `bubble(key)` / `say(key, params)` 均携带语义 key | 调用点只需把 key 顺手传下去，改动面小 |
 | `config.sound` 组已有 muted / volume / bubbles / bubbleDuration | **语音直接复用** muted（一票否决）与 volume，不另设音量项 |
-| 项目当前无任何音频播放代码；无头测试 `tools/test_logic.js` 为 vm 沙箱 | 播放用 Web Audio（渲染进程）；纯逻辑（映射/节流/变体）可进沙箱测试 |
+| 项目当前无任何音频播放代码；无头测试 `tools/check/test_logic.js` 为 vm 沙箱 | 播放用 Web Audio（渲染进程）；纯逻辑（映射/节流/变体）可进沙箱测试 |
 
 ---
 
@@ -122,7 +122,7 @@
 - **验收**：开关关闭/静音时零发声；开启后互动有叫声；气泡行为无任何回归（test_logic 全绿）
 
 ### 阶段 2：素材制作与全量接线 —— ✅ 已完成（2026-10-17）
-- [x] 素材管线 `tools/import_meows.py`（切片 → 高通 → 重采样变速 → 响度归一 → OGG）
+- [x] 素材管线 `tools/audio/import_meows.py`（切片 → 高通 → 重采样变速 → 响度归一 → OGG）
       —— 未另建 `normalize_audio.py`：本项目音频只需一条加工链，单脚本 + 参数表即可，
       与现有 `rebuild_sprites.py`「一脚本跑全素材」的惯例一致
 - [x] 采集 4 个 CC0 素材包 / 7 条源录音 → 生成 **29 条**情境素材（占位 wav 已删，1.3MB → 269KB）
@@ -136,7 +136,7 @@
 - [x] test_logic.js 增补断言：VOICE_SPEC 文件存在性守卫、节流逻辑、变体不连续重复、muted/volume 优先级
 - [x] **音色统一（柔化）**：29 条统一走「加暖 + 削刺 + 削嘶 + 温和压缩 + 柔性起音」，个体只做定点偏置；
       平均尖锐度 1.11→1.03 acum、3–5k 占比 2.0%→0.5%、谱重心 1373→1225 Hz，1–3k 存在感保留 97%
-      （方案与逐条参数见 `tone-plan.md`；测量工具 `tools/analyze_meow_tone.py`）
+      （方案与逐条参数见 `tone-plan.md`；测量工具 `tools/audio/analyze_meow_tone.py`）
 - [x] 微变调手感调参（playbackRate 0.94–1.06，sys 不抖动）；打断策略实测
 - [ ] **人工听感确认**：需用 `assets/previews/meow-preview-ab.html` 逐条 A/B 一遍，确认"变柔但没变闷"
 - **验收**：断言全绿 ✅；实机听感确认（连续互动 30s 无刺耳/无漏叫）待人工
@@ -220,14 +220,14 @@
 | `cat-pet/engine/config-schema.js` | sound 组新增 `voice` 开关（默认开，51 项），旧配置自动补默认 |
 | `cat-pet/assets/audio/meow/**/*.ogg` | **29 条 CC0 真实录音素材**（14 情境，269KB），`urgent/` 独立子目录；阶段 1 的 29 条占位 wav 已删除 |
 | `cat-pet/assets/audio/CREDITS.md` | 来源登记：4 个素材包 / 7 条源录音 / 作者 / CC0 许可证 / 每条加工参数表 |
-| `tools/import_meows.py` | 素材管线（源录音 → 切片 → 变速 → **柔化 EQ/压缩/柔性起音** → 响度归一 → OGG，表驱动可复跑） |
+| `tools/audio/import_meows.py` | 素材管线（源录音 → 切片 → 变速 → **柔化 EQ/压缩/柔性起音** → 响度归一 → OGG，表驱动可复跑） |
 | `assets/previews/meow-preview.html` | 试听页（按情境分组，单条 / 连续试听；单文件自包含，任意打开方式可播） |
 | `assets/previews/meow-preview-ab.html` | **新旧 A/B 对比页**（每行「旧/新」双按钮 + 尖锐度/3–5k/谱重心对照），用于听感定稿 |
-| `tools/analyze_meow_tone.py` | 音色客观测量（谱重心 / >4k / 3–5k / Zwicker 尖锐度 / 估计基频），支持 `--csv` |
-| `tools/make_meow_ab.py` | A/B 对比页生成器（读 `_baseline_meow.csv` / `_after_meow.csv`） |
+| `tools/audio/analyze_meow_tone.py` | 音色客观测量（谱重心 / >4k / 3–5k / Zwicker 尖锐度 / 估计基频），支持 `--csv` |
+| `tools/audio/make_meow_ab.py` | A/B 对比页生成器（读 `_baseline_meow.csv` / `_after_meow.csv`） |
 | `tone-plan.md` | 音色统一方案：判据、统一处理链、逐条调整方向与验收数据 |
-| `tools/make_placeholder_meows.py` | 占位音生成脚本（保留作兜底；当前已无 wav 引用） |
-| `tools/test_logic.js` | 语音断言 25 条 → **28 条**（新增阶段 2 规格：全 ogg / 时长上限 / 无 wav 残留） |
+| `tools/audio/make_placeholder_meows.py` | 占位音生成脚本（保留作兜底；当前已无 wav 引用） |
+| `tools/check/test_logic.js` | 语音断言 25 条 → **28 条**（新增阶段 2 规格：全 ogg / 时长上限 / 无 wav 残留） |
 
 ### 8.4 占位音 → 真素材替换方式（决策 4）——✅ 已执行完毕
 
@@ -235,7 +235,7 @@
 
 1. 真素材按 `<ctx>_<n>.ogg` 命名放进 `assets/audio/meow/`（危急喵放 `urgent/`）。
 2. **同名 `.wav` 占位音已全部删除**（29 个，回收 1.2MB）；`.ogg` 命中后 wav 不再被引用。
-3. 增删变体数量时，同步改 `engine/voice.js` 的 `SPEC[ctx].files` + `tools/import_meows.py` 的 `TARGETS`
+3. 增删变体数量时，同步改 `engine/voice.js` 的 `SPEC[ctx].files` + `tools/audio/import_meows.py` 的 `TARGETS`
    （守卫断言会校验素材存在性与时长上限，漏放/超限会 FAIL）。
 4. 想换素材：改 `TARGETS` 的「源文件 + 切片 + 变速比」再跑一遍脚本即可，秒级重生成。
 
@@ -250,6 +250,6 @@
 
 ### 8.6 验证结果
 
-- `tools/test_logic.js`：**全部通过**（新增 25 条语音断言：映射 5 / SPEC 约束 4 / 素材存在性 2 / 门禁节流 6 / 静默 1 / 接线守卫 3 等）。
+- `tools/check/test_logic.js`：**全部通过**（新增 25 条语音断言：映射 5 / SPEC 约束 4 / 素材存在性 2 / 门禁节流 6 / 静默 1 / 接线守卫 3 等）。
 - 实机（真实 app + 驱动真实 action）：**8/8 通过** —— `window.Voice` 加载、系统事件→`sys`、互动 `callReply`→`call`、静音零播放、`voice` 关闭零播放、`pet_1.wav` 可解码（0.55s/48kHz）、渲染进程无 error 日志。
 - 已知环境限制：无头验证下 rAF 被节流，依赖帧循环的 `pet/eat` 冒泡路径无法自动触发（改用即时冒泡的 `callReply` 验证；真实桌面环境不受影响）。

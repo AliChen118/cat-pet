@@ -148,8 +148,8 @@ Farneback 光流与 SDF-demons 两版工具均已实现并实测（`assets/raw/_
 | 2 | `assets/sprites/tops.json`（新） | 构建期由 `sprite_bounds.py` 产出每帧内容顶值 | 免去运行时逐帧扫描 |
 | 3 | `renderer.js` | `SPRITE_FILES` 帧表 + `SPRITE_FPS` 更新 | 帧数与帧率变更 |
 | 4 | `assets/sprites/frames/` | **删除 8 张无引用旧副本**（`walk1-4.png` / `run1-4.png`） | 无下划线命名、代码未引用，约 1.3 MB，早晚被误打包 |
-| 5 | `tools/sprite_bounds.py` | 扩展：产出 `tops.json` + 校验 `SPRITE_HALF_W ≤ 253`、报告躯干位移/IoU | 保证 198 帧全部落在渲染安全区内 |
-| 6 | `tools/test_logic.js` | `EXPECTED` 帧清单 46 → 198；新增断言：每姿态帧数 ∈ [10,25]、帧率符合守恒公式 | 防止后续误改 |
+| 5 | `tools/sprites/sprite_bounds.py` | 扩展：产出 `tops.json` + 校验 `SPRITE_HALF_W ≤ 253`、报告躯干位移/IoU | 保证 198 帧全部落在渲染安全区内 |
+| 6 | `tools/check/test_logic.js` | `EXPECTED` 帧清单 46 → 198；新增断言：每姿态帧数 ∈ [10,25]、帧率符合守恒公式 | 防止后续误改 |
 | 7 | `README.md` / `.workbuddy/memory` | 同步帧表、帧率、包体、姿态清单 | 文档一致 |
 
 ---
@@ -170,7 +170,7 @@ Farneback 光流与 SDF-demons 两版工具均已实现并实测（`assets/raw/_
 
 1. **逐姿态 GIF 对照**（旧 N 帧 vs 新 M 帧，同周期并排循环）→ 人眼验收流畅度
 2. `sprite_bounds.py` 全帧报告：最大半宽、躯干位移、IoU → 无抖动、不越界
-3. 回归：`tools/test_logic.js` 断言全绿，连续多轮无 flaky
+3. 回归：`tools/check/test_logic.js` 断言全绿，连续多轮无 flaky
 4. 实机：启动耗时（验证按需加载生效）、内存占用、13 个动作逐一观感
 
 ---

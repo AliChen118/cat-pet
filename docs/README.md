@@ -11,12 +11,13 @@
 | 文档 | 讲什么 | 什么时候看 |
 |---|---|---|
 | [`01-architecture.md`](01-architecture.md) | 定位与范围、技术选型、进程/窗口模型、IPC 全貌、目录结构、全局工程约束 | 第一次接手；想弄清"谁持有状态、谁负责渲染" |
-| [`02-animation.md`](02-animation.md) | 素材规格、14 姿态 47 帧表、播放器与插值、待机眨眼、体型与形体平滑、气泡/阴影几何、素材管线 | 改动作、补帧、调眨眼、修"猫变形/气泡偏移" |
+| [`02-animation.md`](02-animation.md) | 素材规格、15 姿态 52 张帧图表、播放器与插值、待机眨眼、体型与形体平滑、气泡/阴影几何、素材管线 | 改动作、补帧、调眨眼、修"猫变形/气泡偏移" |
 | [`03-behavior.md`](03-behavior.md) | 状态机、属性模型与衰减、交互结算、分档阈值、权重乘子、P1–P10 仲裁、实时性与冷却 | 改行为权重、调阈值、加新动作或新需求反应 |
 | [`04-settings.md`](04-settings.md) | schema 单一来源机制、56 项清单、生效时机、持久化与迁移链、设置窗 UI 规格 | 加/删设置项、改默认值、动设置页布局 |
 | [`05-audio.md`](05-audio.md) | 语音分层架构、12 情境 SPEC、素材清单与授权、音色处理链、限流与音量链 | 换叫声、调音量/冷却、改音色 |
 | [`06-ai.md`](06-ai.md) | 自言自语形态、内容规格、模型接入与降级、去重、密钥存储 | 改提示词、加预设、调频率 |
 | [`07-engineering.md`](07-engineering.md) | 构建打包、测试体系、验证手法、环境约束、历史坑清单 | 打包发版、写断言、排查"为什么本机跑不起来" |
+| [`08-update.md`](08-update.md) | 版本更新：发布侧清单与命名、客户端检查/比对/下载/校验/替换、两条安装路径 | 加更新功能、改发版流程、排查"更新失败" |
 | [`history/`](history/README.md) | 各阶段方案原稿（含已被取代的决策与放弃的路线） | 想追溯"当时为什么这么做" |
 | [`ui/settings-ui-prototype.html`](ui/settings-ui-prototype.html) | 设置窗可交互原型（单文件，双击即开） | 改 UI 前先在原型里试 |
 
@@ -30,6 +31,7 @@
 - **加设置项**：04 → 02/03/05/06（按所属功能看接线点）
 - **换叫声**：05 → 07
 - **发版**：07「版本与文档同步」
+- **接更新/发版流水线**：08 → 07（打包与测试）
 
 ---
 
@@ -39,13 +41,13 @@
 
 | 项 | 当前值 | 真源 |
 |---|---|---|
-| 产品版本 | `1.0.0` | `app/package.json` |
+| 产品版本 | `1.2.0` | `app/package.json` |
 | 配置结构版本 | `configVersion = 11` | `engine/config-schema.js` |
 | 设置项 | **9 组 56 项** | `engine/config-schema.js` |
-| 逻辑断言 | **379 条**，0 失败 | `tools/test_logic.js` |
-| 姿态 / 帧数 | **14 姿态 / 47 帧**（13 个序列 + `drag` 单帧） | `app/assets/sprites/frames/` |
+| 逻辑断言 | **452 条**，0 失败 | `tools/check/test_logic.js` |
+| 姿态 / 帧数 | **15 姿态 / 52 张**（14 序列 51 帧 + `drag` 单帧） | `app/assets/sprites/frames/` |
 | 宠物窗口 | 640×640 透明置顶，不可缩放 | `app/main.js` `WIN_W/WIN_H` |
-| 精灵半宽 | `SPRITE_HALF_W = 253` | `renderer.js` / `main.js` / `tools/sprite_bounds.py` |
+| 精灵半宽 | `SPRITE_HALF_W = 253` | `renderer.js` / `main.js` / `tools/sprites/sprite_bounds.py` |
 | 语音情境 | **12**（10 叫声 + 2 呼噜铺底），15 条素材 | `engine/voice.js` `SPEC` |
 | 界面语言 | 固定 `zh-CN`（不提供切换项） | `config-schema.js` `defaults()` |
 

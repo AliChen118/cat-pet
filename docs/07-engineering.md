@@ -6,7 +6,7 @@
 cd app
 npm ci            # 安装依赖（含 Electron 31）
 npm start         # 开发运行
-npm test          # 逻辑回归（= node ../tools/test_logic.js，379 断言）
+npm test          # 逻辑回归（= node ../tools/check/test_logic.js，452 断言）
 npm run dist:win      # Windows：portable + nsis
 npm run dist:portable # 只出便携版
 npm run dist:linux    # Linux：AppImage
@@ -64,13 +64,13 @@ const content = buf.slice(base + Number(node.offset), base + Number(node.offset)
 
 ## 四、测试体系
 
-`tools/test_logic.js` 是唯一的自动化回归入口，无框架、无并发、单文件：
+`tools/check/test_logic.js` 是唯一的自动化回归入口，无框架、无并发、单文件：
 
 - **A. Schema 单元断言**：迁移链各版本、越界夹紧、枚举回退、补丁合并、变更路径；
 - **B. 渲染进程行为**：Node `vm` 造一个沙箱 DOM/Canvas（Canvas 用 Proxy 吞掉所有绘图调用），加载真实 `renderer.js`，驱动数千帧，模拟点击/拖拽/滚轮/菜单/`config-changed` 广播，断言状态、几何、持久化调用。
 
 ```
-node tools/test_logic.js
+node tools/check/test_logic.js
 → [ok]/[FAIL] 逐条输出；末尾 [PASS]/[PASS*]/[FAIL]
 → 部分姿态因随机性未覆盖时给 [PASS*]，属正常
 ```
@@ -108,7 +108,7 @@ env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./node_modules/electron/dist/electro
 - Node 22 自带全局 `WebSocket`，不需要 `ws` 包；
 - 钩住 `Animator.prototype.update`（比钩 `draw` 省开销）统计帧索引/时钟；
 - **渲染进程桥接是 `window.pet`**——`api` 只是 IIFE 内的局部 `const`，CDP 里取不到；
-- 现成脚本：`tools/probe_blink_live.js`（眨眼频率与分布）、`tools/probe_blink_rate.js`（改设置 → 读 `meanGap`，验证实时生效）。
+- 现成脚本：`tools/probe/probe_blink_live.js`（眨眼频率与分布）、`tools/probe/probe_blink_rate.js`（改设置 → 读 `meanGap`，验证实时生效）。
 
 ### 3. 默认值验证
 
