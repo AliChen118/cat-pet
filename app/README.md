@@ -34,8 +34,8 @@ npm run dist:portable  # 只产出便携版
 
 | 产物 | 说明 |
 |------|------|
-| `CatDesktopPet-Portable-1.1.10.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
-| `CatDesktopPet-Setup-1.1.10.exe` | **安装版**：标准 Windows 安装向导（可自定义安装目录、显示安装进度，安装完成可直接勾选运行；默认写入当前用户目录，无需管理员权限） |
+| `CatDesktopPet-Portable-1.2.0.exe` | **便携版**：单文件免安装，双击即用，可放 U 盘随身携带 |
+| `CatDesktopPet-Setup-1.2.0.exe` | **安装版**：标准 Windows 安装向导（可自定义安装目录、显示安装进度，安装完成可直接勾选运行；默认写入当前用户目录，无需管理员权限） |
 
 打包方式：**electron-builder**（asar 归档 + Electron 31 运行时），应用图标 `build/icon.ico` 由精灵图 `idle.png` 自动生成（256/128/64/48/32/16 多尺寸）。用户数据（配置、备份）保存在 `%APPDATA%/cat-desktop-pet`，与程序目录分离，替换 exe 不丢数据；首次启动会自动写出默认 `config.json`。
 
@@ -53,7 +53,7 @@ npm run dist:portable  # 只产出便携版
 三点行为说明：
 
 - 在「选定安装位置」里选的目录，安装时会自动补一层 `CatDesktopPet` 子目录（electron-builder `instFilesPre` 行为，避免文件散落到用户自选目录根部）。
-- 静默安装：`CatDesktopPet-Setup-1.1.10.exe /S /D=<路径>`（`/D=` 不带引号且必须是最后一个参数）。
+- 静默安装：`CatDesktopPet-Setup-1.2.0.exe /S /D=<路径>`（`/D=` 不带引号且必须是最后一个参数）。
 - 卸载：Windows「设置 → 应用」或安装目录里的 `Uninstall CatDesktopPet.exe`，快捷方式与卸载表项一并清理；用户数据 `%APPDATA%/cat-desktop-pet` 保留（`deleteAppDataOnUninstall: false`），重装后配置与宠物状态继续可用。
 
 > **注意**：在注入了 `ELECTRON_RUN_AS_NODE=1` 或 `NODE_OPTIONS`（--require 垫片）的终端里从命令行启动 exe 会失效（被当作纯 Node 运行，表现为进程驻留但无窗口）。日常使用请直接**双击 exe**，或在启动前清除这两个环境变量（`env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./CatDesktopPet.exe`）。
@@ -123,7 +123,7 @@ npm run dist:portable  # 只产出便携版
 | `idle` | 4 | 5 fps | 呼吸循环；常态只在睁眼帧之间轮播，眨眼由独立随机时钟触发（见下） |
 | `walk` | 4 | 11 fps | 四足交替落地，含重心转移与身体起伏 |
 | `run` | 4 | 13 fps | 四足腾空瞬间收腿，含前倾与更大起伏 |
-| `eat` | 4 | 6 fps | 低头咬食 → 咀嚼 → 抬头吞咽 → 舔食 |
+| `eat` | 2 | 4 fps | 咬食 → 舔食（去掉中段两帧，避免帧间淡化出「两个食盆」） |
 | `play` | 4 | 8 fps | 举爪蓄力 → 拍球 → 兴奋后仰 → 低头盯球 |
 | `pet` | 3 | 6 fps | 被抚摸蹭头三连（左右蹭 + 仰头满足） |
 | `jump` | 3 | 5 fps | 下蹲蓄力 → 腾空舒展 → 落地挤压（单次播放，周期 ≈ 腾空时长 0.62s） |
@@ -133,6 +133,7 @@ npm run dist:portable  # 只产出便携版
 | `tailwag` | 4 | 7 fps | 摇尾巴（非交互自主动作） |
 | `unhappy` | 2 | 2 fps | 不高兴（非交互自主动作） |
 | `bath` | 6 | 6 fps | 洗澡（坐盆 → 泡泡 → 抖身水花 → 冲净 → 甩尾收尾） |
+| `lick` | 4 | 5 fps | 舔爪子（抬爪 → 舔爪背 → 擦脸 → 收爪）；主帧 `lick_2` 额外停留 150 ms，单轮 ≈ 0.95 s |
 | `drag` | 1 | — | 被拎起（单姿态） |
 
 **待机眨眼**（`engine/animator.js` 的 `blinkCfg` / `_scheduleBlink`）：眨眼的触发独立于帧序列，由一条累加时钟驱动。

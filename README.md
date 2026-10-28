@@ -2,7 +2,7 @@
 
 Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物的桌面陪伴程序：透明无边框置顶窗口，会自己散步、趴睡、摇尾巴、撒娇，也可以抚摸 / 喂食 / 逗玩 / 呼喊 / 洗澡，还会按状态冒台词、发喵叫、自言自语。
 
-- **15 姿态 51 帧**动画，帧间交叉淡化 + 随机眨眼（频率可调）
+- **15 姿态 52 张帧图**动画，帧间交叉淡化 + 随机眨眼（频率可调）
 - **五项属性**：心情 / 饱食 / 体力 / 清洁 / 好感；前四项按分档阈值实时改变台词与行为倾向
 - **12 情境喵叫**（15 条 CC0 真猫录音，统一柔化音色）+ 呼噜铺底音轨
 - **AI 自言自语**：单向播报笑话 / 故事 / 诗 / 谜语 / 冷知识，无 Key 自动降级内置语料
@@ -13,7 +13,7 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 
 ## 下载安装
 
-前往 [Releases](https://github.com/OWNER/CatDesktopPet/releases) 下载对应平台的产物：
+前往 [Releases](https://github.com/AliChen118/cat-pet/releases) 下载对应平台的产物：
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
@@ -21,6 +21,14 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 | Windows | `CatDesktopPet-Setup-<版本>.exe` | 安装版：标准安装向导，可自选安装目录，显示进度与完成页（附桌面 / 开始菜单快捷方式） |
 | Linux | `CatDesktopPet-<版本>-x86_64.AppImage` | AppImage：`chmod +x` 后直接运行 |
 | 源码 | `CatDesktopPet-<版本>-source.zip` / `.tar.gz` | 与发布版本对应的源码包 |
+
+## 版本记录
+
+| 版本 | 变更 |
+|---|---|
+| **1.2.0** | 修复「气泡正在显示时拖拽 / 抚摸等交互后，气泡长时间不消失」：`interruptAi()` 过去只 `clearTimeout` 而没摘掉 `.show`，现统一走 `hideBubble()` 收尾，并加 20 s 看门狗兜底（详见 [`docs/06-ai.md`](docs/06-ai.md) 4.1） |
+| 1.1.10 | 15 个姿态的素材尺寸一次性统一（内容底边全部 469、横向质心极差 ≤0.8 px、面积 93–113%）；`NO_FRAME_BLEND` 扩到 10 个姿态消除帧间残影；`POSE_SCALE` 清空、比例全部烘焙进素材；阴影随姿态缩放（详见 [`docs/02-animation.md`](docs/02-animation.md)） |
+| 1.1.9 | 安装版改标准向导：可自定义安装目录、显示安装进度与完成页 |
 
 ## 文档
 
@@ -35,6 +43,7 @@ Q 版长毛银渐层桌面宠物（Electron + Canvas 2D）—— 类 QQ 宠物�
 | [`docs/05-audio.md`](docs/05-audio.md) | 语音分层、12 情境 SPEC、素材来源与授权、音色处理链 |
 | [`docs/06-ai.md`](docs/06-ai.md) | 自言自语形态、内容规格、模型接入与降级、去重与密钥 |
 | [`docs/07-engineering.md`](docs/07-engineering.md) | 构建打包、asar 校验、测试体系、验证手法、历史坑清单 |
+| [`docs/08-update.md`](docs/08-update.md) | 版本更新**方案**（发布侧清单与命名、客户端检查/下载/校验/替换；尚未实现） |
 | [`docs/history/`](docs/history/README.md) | 各阶段方案原稿（含已放弃的路线，仅作追溯） |
 
 ## 目录结构
