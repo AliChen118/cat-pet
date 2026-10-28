@@ -776,6 +776,24 @@ function ok(cond, msg) {
 
   ok(rend.indexOf('function aiShow') >= 0 && rend.indexOf('function maybeAutoTalk') >= 0 &&
     rend.indexOf('function interruptAi') >= 0, '接线: 渲染进程有 显示 / 调度 / 打断 三个入口');
+
+  /* 气泡收尾（2026-10-28 修复）：打断 AI 必须真的摘掉 .show，不能只取消定时器。
+     根因：interruptAi 里 clearTimeout(ai.showT) 一撤，那句的 .show 就没人摘，
+     气泡会一直挂到下一次有人说话——用户看到的「拖拽后气泡长时间不消失」。
+     实际缺陷 = 拖拽（pointerdown 必然 interruptAi）+ AI 段未讲完。 */
+  const hideAt = rend.indexOf('function hideBubble');
+  const hideBody = hideAt < 0 ? '' : rend.slice(hideAt, hideAt + 400);
+  const showBody = rend.slice(rend.indexOf('function showBubble'), hideAt < 0 ? undefined : hideAt);
+  const interruptBody = rend.slice(rend.indexOf('function interruptAi'), rend.indexOf('function aiDelay'));
+  ok(hideAt >= 0 && /classList\.remove\('show'\)/.test(hideBody) && /classList\.remove\('verse'\)/.test(hideBody),
+    '气泡: hideBubble 是唯一收尾出口，同时摘 show 与 verse');
+  ok(/hideBubble\(\)/.test(interruptBody), '回归: 打断 AI 时立即收掉气泡（只 clearTimeout 会让这句永远挂着）');
+  ok(/ai\.text = text/.test(rend) && /setTimeout\(hideBubble/.test(rend),
+    '气泡: AI 句记下原文，并用 hideBubble 定时收尾');
+  ok(/clearTimeout\(ai\.showT\)/.test(showBody),
+    '气泡: 普通气泡顶掉 AI 台词时撤掉它的定时器（否则反手把新气泡提前收掉）');
+  ok(/BUBBLE_MAX_LIFE/.test(rend) && /time - bubbleShownAt > BUBBLE_MAX_LIFE/.test(rend),
+    '气泡: 20s 看门狗兜底，任何漏收路径都不会永久停留');
   ok(rend.indexOf('api.onAiSay') >= 0 && rend.indexOf('api.onAiDone') >= 0, '接线: 渲染进程订阅 ai-say / ai-done');
   ok(rend.indexOf('if (!force && ai.busy) return false') >= 0, '接线: AI 讲的时候自主气泡让路（危急 force 例外）');
   ok(rend.indexOf("fsm.name === 'sleep'") >= 0 && rend.indexOf("fsm.name === 'drag'") >= 0,

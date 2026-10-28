@@ -55,6 +55,10 @@
   const SPRITE_GROUND_Y = 470;     // 素材基线，与 engine/animator.js 保持一致
   const BUBBLE_GAP = 2;            // 尖角末端与猫头顶的间距（贴近宠物）
   const BUBBLE_TAIL = 6;           // 尖角伸出高度（与 index.html 中 ::after 的 bottom 一致）
+  /* 气泡最长存活（秒）。正常收尾靠 showBubble / aiShow 各自的定时器，
+     这里是兜底：AI 单句最多停留 8s（ai-talk 的 holdFor 上限），超过 20s 仍挂着
+     必定是某条路径只取消了定时器、没摘 .show —— 那种气泡会一直停到下次说话。 */
+  const BUBBLE_MAX_LIFE = 20;
   const HEAD_SMOOTH = 0.0004;      // 头顶高度的指数平滑系数（抑制帧序列带来的抖动）
 
   /* ---- 活跃度 → 决策间隔与行为概率 ----
@@ -361,6 +365,7 @@
   let bubbleSize = { w: 0, h: 0 };  // 气泡未缩放时的盒尺寸（文本变化时重测）
   let bubblePop = 1;          // 气泡弹出动画进度 0→1
   let bubbleHeadY = null;     // 平滑后的猫头顶（窗口坐标），用于挂载气泡
+  let bubbleShownAt = -1e9;   // 本句气泡的出现时刻（秒），供看门狗兜底
   const mouse = { x: W / 2, y: GROUND };
   let gesture = { active: false, dragging: false, sx: 0, sy: 0 };
   let mousePassOver = null;   // 动态鼠标穿透：上一次「鼠标是否在可交互区域」状态
@@ -449,6 +454,16 @@
     return t.trim();
   }
 
+  /* AI 自言自语的运行时状态。声明在气泡相关函数之前：showBubble / hideBubble
+     都要读写它（取消那句的定时器），放在后面会踩 TDZ。 */
+  const ai = {
+    busy: false,      // 正在讲一段：期间挂起自主气泡
+    nextAt: 0,        // 下次可以自己开口的时间点（秒）
+    showT: null,      // 当前句的隐藏定时器
+    tickT: 0,         // 调度检查节流（每 5s 一次）
+    text: '',         // 屏上这句话的原文：打断时据此判断「该不该顺手收掉气泡」
+  };
+
   function showBubble(text, voiceKey) {
     text = sanitizeBubbleText(text);
     if (!text) return;                 // 空文案（含词条缺失守卫）不出气泡框
@@ -468,11 +483,31 @@
       bubbleHeadY = null;     // 重新挂载时直接吸附头顶，不做平滑追赶
     }
     measureBubble();
+    bubbleShownAt = time;
     clearTimeout(showBubble._t);
+    // 顺手撤掉 AI 那句的定时器：两条定时器抢同一个元素，
+    // 留着它会在「普通气泡把 AI 台词顶掉」之后把新气泡提前收掉
+    clearTimeout(ai.showT);
+    ai.showT = null;
+    ai.text = '';
     showBubble._t = setTimeout(
       () => bubbleEl.classList.remove('show'),
       Math.max(1200, config.sound.bubbleDuration || 2200)
     );
+  }
+
+  /**
+   * 收气泡的唯一出口。
+   * 「只 clearTimeout 不摘 .show」是本文件出现过的最阴的一类 bug：
+   * 定时器没了、class 还在，气泡就会一直挂在屏幕上，直到下一次有人说话。
+   */
+  function hideBubble() {
+    clearTimeout(showBubble._t);
+    clearTimeout(ai.showT);
+    ai.showT = null;
+    ai.text = '';
+    bubbleEl.classList.remove('show');
+    bubbleEl.classList.remove('verse');
   }
 
   /** 测量气泡未缩放时的盒尺寸（transform 不影响布局尺寸，可安全用于缩放换算） */
@@ -572,12 +607,7 @@
    * 没有对话、没有输入——猫只单向说话。
    */
 
-  const ai = {
-    busy: false,      // 正在讲一段：期间挂起自主气泡
-    nextAt: 0,        // 下次可以自己开口的时间点（秒）
-    showT: null,      // 当前句的隐藏定时器
-    tickT: 0,         // 调度检查节流（每 5s 一次）
-  };
+  /* AI 状态对象见上方（与 showBubble 放一起，避免 TDZ）。 */
 
   /** AI 句子专用显示：不走 autoBubble 冷却，按主进程给的 hold 定时隐藏 */
   function aiShow(text, voiceKey, verse, hold) {
@@ -591,21 +621,25 @@
       bubbleHeadY = null;
     }
     bubbleEl.textContent = text;
+    ai.text = text;                     // 记下屏上这句，打断时据此判断归属
     bubbleEl.classList.toggle('verse', !!verse);
     bubbleEl.classList.add('show');
     measureBubble();
+    bubbleShownAt = time;
     clearTimeout(ai.showT);
-    ai.showT = setTimeout(() => {
-      bubbleEl.classList.remove('show');
-      bubbleEl.classList.remove('verse');
-    }, Math.max(1200, hold || config.sound.bubbleDuration || 2200));
+    ai.showT = setTimeout(hideBubble, Math.max(1200, hold || config.sound.bubbleDuration || 2200));
   }
 
   /** 打断进行中的一段（交互优先；也让主进程停掉后续句子的推送） */
   function interruptAi() {
     if (!ai.busy) return;
     ai.busy = false;
-    clearTimeout(ai.showT);
+    // 关键：不能只 clearTimeout。定时器一撤，那句的 .show 就没人摘了，
+    // 气泡会一直挂在屏幕上，直到下一次有别的台词把它顶掉——
+    // 这正是「拖拽时气泡长时间不消失」的根因。屏上还是这句就直接收掉；
+    // 已被别的话覆盖（如危急提醒）则只撤掉它的定时器，不动别人的气泡。
+    if (ai.text && bubbleEl.textContent === ai.text) hideBubble();
+    else { clearTimeout(ai.showT); ai.showT = null; ai.text = ''; }
     if (api && api.aiAbort) {
       try { api.aiAbort().catch(() => {}); } catch (_) { /* 忽略 */ }
     }
@@ -2022,6 +2056,9 @@
       pendingNeed = null;
       needBubble(p.statKey, p.key, NEED_REACT_CD, true);
     }
+
+    // 气泡看门狗：定时器万一被取消而 .show 没摘，这里 20s 内一定收掉
+    if (bubbleEl.classList.contains('show') && time - bubbleShownAt > BUBBLE_MAX_LIFE) hideBubble();
 
     // 状态面板实时数据（0.25s 节流；面板关闭时不推送）
     // AI 自主调度：每 5s 判一次是否到点、是否够安静
